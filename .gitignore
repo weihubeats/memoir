@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
+
+# Common build artifacts
+node_modules/
+dist/
+target/
+__pycache__/
+*.pyc
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
