@@ -321,3 +321,17 @@ pub async fn list_audit(ctx: &Ctx, limit: i64) -> anyhow::Result<Vec<AuditRow>> 
     .fetch_all(&ctx.pool)
     .await?)
 }
+
+/// 概览计数（桌面端 db_info 用）。
+pub async fn counts(ctx: &Ctx) -> anyhow::Result<(i64, i64, i64)> {
+    let entities: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM entities")
+        .fetch_one(&ctx.pool)
+        .await?;
+    let facts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM facts WHERE valid_to IS NULL")
+        .fetch_one(&ctx.pool)
+        .await?;
+    let entries: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM entries")
+        .fetch_one(&ctx.pool)
+        .await?;
+    Ok((entities, facts, entries))
+}

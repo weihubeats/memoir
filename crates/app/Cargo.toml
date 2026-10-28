@@ -1,0 +1,19 @@
+[package]
+name = "my-context-app"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "my_context_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+my-context-core = { path = "../core" }
+tauri = { version = "2", features = [] }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true

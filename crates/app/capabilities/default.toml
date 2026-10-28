@@ -1,0 +1,4 @@
+identifier = "default"
+description = "my-context 桌面端默认能力（仅自定义命令，无插件权限）"
+windows = ["main"]
+permissions = ["core:default"]

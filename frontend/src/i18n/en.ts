@@ -1,0 +1,68 @@
+import type { I18nKey } from './zh'
+
+export const en: Record<I18nKey, string> = {
+  'app.name': 'my-context · Personal Context',
+
+  'nav.profile': 'Profile',
+  'nav.timeline': 'Timeline',
+  'nav.review': 'Review',
+  'nav.settings': 'Settings',
+
+  'common.loading': 'Loading…',
+  'common.error': 'Error: {msg}',
+  'common.empty': '(empty)',
+  'common.add': 'Add',
+  'common.submit': 'Submit',
+  'common.copy': 'Copy',
+  'common.copied': 'Copied',
+  'common.refresh': 'Refresh',
+  'common.domain': 'Domain',
+  'common.sensitivity': 'Sensitivity',
+  'common.entity': 'Entity',
+  'common.kind': 'Kind',
+  'common.none': 'None',
+  'common.close': 'Close',
+
+  'sens.normal': 'normal',
+  'sens.sensitive': 'sensitive',
+  'sens.secret': 'secret',
+
+  'profile.title': 'Profile Overview',
+  'profile.validFrom': 'since {time}',
+  'profile.newFact': 'New Fact',
+  'profile.key': 'Key',
+  'profile.value': 'Value',
+  'profile.factOf': '{entity} · {key}',
+  'profile.entityCount': '{count} entities',
+
+  'timeline.title': 'Timeline',
+  'timeline.newEntry': 'New Entry',
+  'timeline.entryTitle': 'Title',
+  'timeline.body': 'Body',
+  'timeline.filterPlaceholder': 'Search keyword (FTS + semantic hybrid)',
+  'timeline.search': 'Search',
+  'timeline.backToAll': 'Back to all',
+  'timeline.entities': 'Related entities (comma separated)',
+
+  'review.title': 'Review Center',
+  'review.staleTitle': 'Facts to confirm (not updated for 6+ months)',
+  'review.staleEmpty': 'No stale facts',
+  'review.reportTitle': 'Monthly context report (material)',
+  'review.generate': 'Generate this month',
+  'review.auditTitle': 'Audit log (last 50)',
+
+  'settings.title': 'Settings',
+  'settings.dbPath': 'Database location',
+  'settings.counts': 'Data overview',
+  'settings.countEntities': 'Entities',
+  'settings.countFacts': 'Active facts',
+  'settings.countEntries': 'Entries',
+  'settings.exportTitle': 'Export everything (data sovereignty)',
+  'settings.exportFormat': 'Format',
+  'settings.exportRun': 'Export',
+  'settings.mcpTitle': 'MCP integration (AI clients read your context)',
+  'settings.mcpHint':
+    'Add the snippet below to Claude / ZCode etc.; replace command with the absolute path of the my-context binary.',
+  'settings.contextTitle': 'Context preview (what the AI actually sees each turn)',
+  'settings.contextRun': 'Preview',
+}

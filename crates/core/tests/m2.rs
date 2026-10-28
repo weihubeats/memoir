@@ -167,7 +167,7 @@ async fn stale_facts_and_monthly_report() {
 
     let stale = core::report::list_stale_facts(&ctx.pool, 6).await.unwrap();
     assert_eq!(stale.len(), 1);
-    assert_eq!(stale[0].1, "weight");
+    assert_eq!(stale[0].key, "weight");
 
     let (year, month) = core::report::current_month();
     let report = core::report::monthly_report(&ctx, year, month)

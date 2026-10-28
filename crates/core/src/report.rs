@@ -1,9 +1,19 @@
 use chrono::Datelike;
+use serde::Serialize;
 use sqlx::SqlitePool;
 
 use crate::Ctx;
 
 pub const STALE_MONTHS: i64 = 6;
+
+/// 待确认事实（桌面端与月报共用）。
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct StaleFact {
+    pub entity: String,
+    pub key: String,
+    pub value: String,
+    pub updated_at: String,
+}
 
 pub fn current_month() -> (i32, u32) {
     let now = chrono::Utc::now();
@@ -11,14 +21,11 @@ pub fn current_month() -> (i32, u32) {
 }
 
 /// 保鲜：超过 `months` 个月未更新的当前有效事实（设计文档 §6.4）。
-pub async fn list_stale_facts(
-    pool: &SqlitePool,
-    months: i64,
-) -> anyhow::Result<Vec<(String, String, String, String)>> {
+pub async fn list_stale_facts(pool: &SqlitePool, months: i64) -> anyhow::Result<Vec<StaleFact>> {
     let cutoff = (chrono::Utc::now() - chrono::Duration::days(30 * months))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let rows = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT e.name, f.key, f.value, f.updated_at \
+    let rows = sqlx::query_as::<_, StaleFact>(
+        "SELECT e.name AS entity, f.key, f.value, f.updated_at \
          FROM facts f JOIN entities e ON e.id = f.entity_id \
          WHERE f.valid_to IS NULL AND f.updated_at < ?1 ORDER BY f.updated_at",
     )
@@ -72,8 +79,11 @@ pub async fn monthly_report(ctx: &Ctx, year: i32, month: u32) -> anyhow::Result<
     if stale.is_empty() {
         out.push_str("（无）\n");
     }
-    for (entity, key, value, at) in &stale {
-        out.push_str(&format!("- {entity} | {key} = {value}（最后更新 {at}）\n"));
+    for s in &stale {
+        out.push_str(&format!(
+            "- {} | {} = {}（最后更新 {}）\n",
+            s.entity, s.key, s.value, s.updated_at
+        ));
     }
     out.push_str("\n## 本月操作统计\n\n");
     if audit.is_empty() {

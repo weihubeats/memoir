@@ -26,9 +26,11 @@
 
 ```
 docs/DESIGN.md        设计文档（数据模型 / 架构 / 注入策略 / 管理机制 / 桌面端功能）
-crates/core           核心库：SQLite 存储 / 事实版本化 / 档案注入 / 检索 / 导出
+crates/core           核心库：SQLite 存储 / 事实版本化 / 档案注入 / 混合检索 / 导出
 crates/mcp            MCP server（rmcp，stdio）
-crates/cli            命令行：my-context init / add / list / export / serve
+crates/cli            命令行：my-context init / add / list / search / report / export / serve
+crates/app            桌面端（Tauri 2）：档案总览 / 时间线 / 审查中心 / 设置
+frontend              桌面端前端（Vue 3 + Vite + Tailwind v4 + Pinia，zh/en i18n）
 ```
 
 ## 快速开始（M1）
@@ -50,6 +52,14 @@ cargo build
 
 # 作为 MCP server 接入 AI 客户端（stdio）
 ./target/debug/my-context serve
+```
+
+桌面端（管理界面）：
+
+```bash
+npm --prefix frontend install
+npm --prefix frontend run build   # cargo 编译前需要 dist 产物存在
+cargo run -p my-context-app       # 开发热更新：npm --prefix frontend run dev 另开终端
 ```
 
 可选——向量语义检索（本机 Ollama，未配置则只用关键词检索）：
