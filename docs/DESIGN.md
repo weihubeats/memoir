@@ -27,8 +27,8 @@
 
 ```
 domain    主题域：health / wealth / career / family / relationship / preference / goal
-entity    实体：我、某人（父母/伴侣）、某公司、某银行卡、某持仓……
-fact      事实：entity + key + value(JSON) + valid_from/valid_to + source_entry_id + sensitivity
+entity    实体：我、某人（父母/伴侣）、某公司、某银行卡……（带可选主域；「我」在 init 时作为 self 种子实体创建，跨域）
+fact      事实：entity + key + value(JSON) + domain(可空 → general) + valid_from/valid_to + source_entry_id + sensitivity
 entry     记录：时间 + 类型(日记/事件/对话摘录/导入) + 标题 + Markdown 正文 + 关联实体 + 标签
 embedding 向量：entry 的语义嵌入（M2 起）
 audit_log 操作日志：时间 + 操作类型 + 对象 + 来源(AI/手动/导入/系统) + 摘要
@@ -220,6 +220,16 @@ SQLite(单文件) ←→ Rust 核心(存储/检索/注入策略) ←→ MCP Serv
 
 - **Rust 单仓库**（core + mcp + cli，后期加 tauri）：与既有栈一致，`rmcp` 官方 SDK 成熟
 - **先 CLI + MCP，后 Tauri UI**：核心价值在数据与链路，UI 是管理加速器而非前置条件
+
+### 8.1 代码结构（M1 已落地）
+
+```
+crates/core   存储与领域：db(连接/迁移) / repo(实体·事实·记录·审计) / profile(档案注入) / export(导出)
+crates/mcp    rmcp stdio server：get_profile / search_entries / recent_entries / add_entry / upsert_fact / add_entity
+crates/cli    my-context 二进制：init / add / list / export / serve
+```
+
+实现与 §2.1 的一处偏差：`domain` 放在事实而非实体上（实体主域可选）——「我」这一个实体的事实横跨所有域，按实体域分组会把全部事实挤进同一组。
 
 ## 10. 里程碑
 

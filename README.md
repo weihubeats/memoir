@@ -25,7 +25,39 @@
 ## 目录
 
 ```
-docs/DESIGN.md   设计文档（数据模型 / 架构 / 注入策略 / 管理机制）
+docs/DESIGN.md        设计文档（数据模型 / 架构 / 注入策略 / 管理机制 / 桌面端功能）
+crates/core           核心库：SQLite 存储 / 事实版本化 / 档案注入 / 检索 / 导出
+crates/mcp            MCP server（rmcp，stdio）
+crates/cli            命令行：my-context init / add / list / export / serve
+```
+
+## 快速开始（M1）
+
+```bash
+cargo build
+# 初始化本地库（macOS 位于 ~/Library/Application Support/my-context/，可用 MY_CONTEXT_DB 覆盖路径）
+./target/debug/my-context init
+
+# 录入
+./target/debug/my-context add fact --entity 我 --key height --value 175cm --domain health
+./target/debug/my-context add entry --title "体检完成" --body "血脂偏高，建议控制饮食。" --entities 我
+
+# 查看 / 导出
+./target/debug/my-context list facts
+./target/debug/my-context export --format markdown --out backup.md
+
+# 作为 MCP server 接入 AI 客户端（stdio）
+./target/debug/my-context serve
+```
+
+Claude / ZCode 配置片段（路径换成绝对路径）：
+
+```json
+{
+  "mcpServers": {
+    "my-context": { "command": "/path/to/my-context", "args": ["serve"] }
+  }
+}
 ```
 
 ## 状态

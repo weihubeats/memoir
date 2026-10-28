@@ -1,0 +1,16 @@
+[package]
+name = "my-context-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono = "0.4.45"
+dirs = "7.0.0"
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "0.9.0", default-features = false, features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

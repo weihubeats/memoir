@@ -1,0 +1,16 @@
+[package]
+name = "my-context-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "my-context"
+path = "src/main.rs"
+
+[dependencies]
+my-context-core = { path = "../core" }
+my-context-mcp = { path = "../mcp" }
+anyhow.workspace = true
+tokio.workspace = true
+clap = { version = "4", features = ["derive"] }
+serde_json.workspace = true
