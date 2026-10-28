@@ -62,9 +62,11 @@ SQLite(单文件) ←→ Rust 核心(存储/检索/注入策略) ←→ MCP Serv
 
 读取：
 
-- `get_profile(domains?, include_sensitive?)`：取「档案摘要」——各域当前有效事实的紧凑视图
-- `search_entries(query, time_range?, domains?, top_k)`：关键词 + 语义混合检索历史记录
+- `get_context(query?, max_chars?)`：**注入总入口**——档案常驻 + 按话题检索相关历史，受字符预算约束（每轮对话调一次）
+- `get_profile(domains?, include_sensitive?)`：纯档案摘要——各域当前有效事实的紧凑视图
+- `search_entries(query, top_k)`：FTS5 trigram + 向量混合检索（RRF 融合、时间新近微加权、预算裁剪）
 - `recent_entries(n)`：最近 n 条记录
+- `get_monthly_report(year?, month?)`：月报材料——本月记录、待确认事实（超 6 个月未更新）、操作统计
 
 写入（让「对话即采集」成立）：
 
@@ -86,9 +88,9 @@ SQLite(单文件) ←→ Rust 核心(存储/检索/注入策略) ←→ MCP Serv
 | 需求 | 选型 | 理由 |
 |---|---|---|
 | 主存储 | SQLite（sqlx） | 单文件、零运维、易备份/导出；团队已熟练 |
-| 全文检索 | SQLite FTS5 | 内建，中文可配 jieba 类分词扩展 |
-| 语义检索 | sqlite-vec | 单库内做向量，不引额外服务 |
-| 嵌入模型 | 本地小模型（如 bge-small-zh） | 隐私：嵌入计算不出本机 |
+| 全文检索 | SQLite FTS5（trigram 分词） | 中文子串可用；<3 字符查询回退 LIKE |
+| 语义检索 | embeddings 表 + Rust 暴力余弦 | 个人库千条量级足够，省掉 sqlite-vec 扩展加载；量大再换 |
+| 嵌入模型 | 本地 Ollama（如 bge-m3，`MY_CONTEXT_EMBED_MODEL` 配置） | 隐私：嵌入计算不出本机；未配置则纯关键词检索 |
 
 否决的备选：纯 Markdown 文件库（事实的时间版本化与一致性难维护，量大了检索差）；服务端多租户架构（隐私风险与运维成本，与「数据主权」目标冲突）。
 
@@ -233,8 +235,8 @@ crates/cli    my-context 二进制：init / add / list / export / serve
 
 ## 10. 里程碑
 
-- **M1 最小闭环**：SQLite schema + 迁移；CLI（init/add/export）；MCP server（get_profile / search_entries / add_entry / upsert_fact）；接入 Claude/ZCode 完成一次真实对话
-- **M2 检索与采集增强**：FTS5 + 向量混合检索；注入预算；对话抽取事实的提示词打磨；月报生成
+- **M1 最小闭环**（已落地）：SQLite schema + 迁移；CLI（init/add/export）；MCP server（get_profile / search_entries / add_entry / upsert_fact）；接入 Claude/ZCode 完成一次真实对话
+- **M2 检索与采集增强**（已落地）：FTS5 trigram + 向量混合检索（RRF + 预算裁剪）；get_context 注入总入口；server instructions 内置采集规则与敏感级指引；月报材料 get_monthly_report
 - **M3 桌面端（管理）**：档案总览 / 实体详情 / 时间线 / 录入与导入 / 审查中心 / 回收站 / 审计日志 / 设置（明细见 §7）
 - **M4 内置对话**：桌面端自带会话，档案常驻注入 + AI 写操作确认卡 + 本地模型切换
 - **M5 可选云同步**：端到端加密同步、多端

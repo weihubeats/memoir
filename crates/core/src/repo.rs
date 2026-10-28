@@ -1,6 +1,8 @@
 use anyhow::Context as _;
 use sqlx::SqlitePool;
 
+use crate::ctx::Ctx;
+use crate::embed;
 use crate::model::{now, AuditRow, Entity, Entry, FactRow, FactUpsert, NewEntry};
 
 pub(crate) async fn audit(
@@ -55,24 +57,24 @@ pub async fn find_entity_by_name(pool: &SqlitePool, name: &str) -> anyhow::Resul
     Ok(entity)
 }
 
-pub async fn get_entity(pool: &SqlitePool, id: i64) -> anyhow::Result<Entity> {
+pub async fn get_entity(ctx: &Ctx, id: i64) -> anyhow::Result<Entity> {
     sqlx::query_as::<_, Entity>(
         "SELECT id, name, kind, domain, status, created_at, updated_at \
          FROM entities WHERE id = ?1",
     )
     .bind(id)
-    .fetch_optional(pool)
+    .fetch_optional(&ctx.pool)
     .await?
     .context("实体不存在")
 }
 
 pub async fn add_entity(
-    pool: &SqlitePool,
+    ctx: &Ctx,
     name: &str,
     kind: &str,
     domain: Option<&str>,
 ) -> anyhow::Result<Entity> {
-    if find_entity_by_name(pool, name).await?.is_some() {
+    if find_entity_by_name(&ctx.pool, name).await?.is_some() {
         anyhow::bail!("实体已存在：{name}");
     }
     let ts = now();
@@ -85,11 +87,11 @@ pub async fn add_entity(
     .bind(domain)
     .bind(&ts)
     .bind(&ts)
-    .execute(pool)
+    .execute(&ctx.pool)
     .await?;
     let id = res.last_insert_rowid();
     audit(
-        pool,
+        &ctx.pool,
         "add_entity",
         "entity",
         Some(id),
@@ -97,45 +99,45 @@ pub async fn add_entity(
         &format!("新增实体 {name}（{kind}）"),
     )
     .await?;
-    get_entity(pool, id).await
+    get_entity(ctx, id).await
 }
 
-pub async fn list_entities(pool: &SqlitePool) -> anyhow::Result<Vec<Entity>> {
+pub async fn list_entities(ctx: &Ctx) -> anyhow::Result<Vec<Entity>> {
     Ok(sqlx::query_as::<_, Entity>(
         "SELECT id, name, kind, domain, status, created_at, updated_at \
          FROM entities ORDER BY id",
     )
-    .fetch_all(pool)
+    .fetch_all(&ctx.pool)
     .await?)
 }
 
 /// 找不到就自动建 topic 实体，让「对话即采集」的链路不中断。
-async fn resolve_entity(pool: &SqlitePool, name: &str) -> anyhow::Result<Entity> {
-    match find_entity_by_name(pool, name).await? {
+async fn resolve_entity(ctx: &Ctx, name: &str) -> anyhow::Result<Entity> {
+    match find_entity_by_name(&ctx.pool, name).await? {
         Some(e) => Ok(e),
-        None => add_entity(pool, name, "topic", None).await,
+        None => add_entity(ctx, name, "topic", None).await,
     }
 }
 
-pub async fn get_fact(pool: &SqlitePool, id: i64) -> anyhow::Result<FactRow> {
+pub async fn get_fact(ctx: &Ctx, id: i64) -> anyhow::Result<FactRow> {
     sqlx::query_as::<_, FactRow>(
         "SELECT id, entity_id, key, value, domain, sensitivity, valid_from, valid_to, source_entry_id \
          FROM facts WHERE id = ?1",
     )
     .bind(id)
-    .fetch_optional(pool)
+    .fetch_optional(&ctx.pool)
     .await?
     .context("事实不存在")
 }
 
 /// 版本化覆盖：旧当前值封口（valid_to），插入新值，历史永远保留。
 pub async fn upsert_fact(
-    pool: &SqlitePool,
+    ctx: &Ctx,
     input: FactUpsert,
 ) -> anyhow::Result<(FactRow, Option<FactRow>)> {
-    let entity = resolve_entity(pool, &input.entity_name).await?;
+    let entity = resolve_entity(ctx, &input.entity_name).await?;
     let ts = now();
-    let mut tx = pool.begin().await?;
+    let mut tx = ctx.pool.begin().await?;
     let superseded = sqlx::query_as::<_, FactRow>(
         "SELECT id, entity_id, key, value, domain, sensitivity, valid_from, valid_to, source_entry_id \
          FROM facts WHERE entity_id = ?1 AND key = ?2 AND valid_to IS NULL",
@@ -167,7 +169,7 @@ pub async fn upsert_fact(
     let id = res.last_insert_rowid();
     tx.commit().await?;
     audit(
-        pool,
+        &ctx.pool,
         "upsert_fact",
         "fact",
         Some(id),
@@ -175,11 +177,11 @@ pub async fn upsert_fact(
         &format!("{} 的 {} 已更新", entity.name, input.key),
     )
     .await?;
-    Ok((get_fact(pool, id).await?, superseded))
+    Ok((get_fact(ctx, id).await?, superseded))
 }
 
 pub async fn list_facts(
-    pool: &SqlitePool,
+    ctx: &Ctx,
     entity_id: Option<i64>,
     active_only: bool,
 ) -> anyhow::Result<Vec<FactRow>> {
@@ -194,7 +196,7 @@ pub async fn list_facts(
     };
     Ok(sqlx::query_as::<_, FactRow>(sql)
         .bind(entity_id)
-        .fetch_all(pool)
+        .fetch_all(&ctx.pool)
         .await?)
 }
 
@@ -231,7 +233,23 @@ async fn finish_entries(pool: &SqlitePool, rows: Vec<EntryRaw>) -> anyhow::Resul
     Ok(out)
 }
 
-pub async fn add_entry(pool: &SqlitePool, input: NewEntry, source: &str) -> anyhow::Result<Entry> {
+pub async fn get_entry(ctx: &Ctx, id: i64) -> anyhow::Result<Option<Entry>> {
+    let Some(row) = sqlx::query_as::<_, EntryRaw>(
+        "SELECT id, occurred_at, kind, title, body, tags, created_at FROM entries WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_optional(&ctx.pool)
+    .await?
+    else {
+        return Ok(None);
+    };
+    Ok(finish_entries(&ctx.pool, vec![row])
+        .await?
+        .into_iter()
+        .next())
+}
+
+pub async fn add_entry(ctx: &Ctx, input: NewEntry, source: &str) -> anyhow::Result<Entry> {
     let ts = now();
     let occurred = input.occurred_at.clone().unwrap_or_else(|| ts.clone());
     let tags = serde_json::to_string(&input.tags)?;
@@ -245,24 +263,24 @@ pub async fn add_entry(pool: &SqlitePool, input: NewEntry, source: &str) -> anyh
     .bind(&input.body)
     .bind(&tags)
     .bind(&ts)
-    .execute(pool)
+    .execute(&ctx.pool)
     .await?;
     let entry_id = res.last_insert_rowid();
     for name in &input.entity_names {
-        let entity = resolve_entity(pool, name).await?;
+        let entity = resolve_entity(ctx, name).await?;
         sqlx::query("INSERT OR IGNORE INTO entry_entities (entry_id, entity_id) VALUES (?1, ?2)")
             .bind(entry_id)
             .bind(entity.id)
-            .execute(pool)
+            .execute(&ctx.pool)
             .await?;
     }
     let entity_ids: Vec<i64> =
         sqlx::query_scalar("SELECT entity_id FROM entry_entities WHERE entry_id = ?1")
             .bind(entry_id)
-            .fetch_all(pool)
+            .fetch_all(&ctx.pool)
             .await?;
     audit(
-        pool,
+        &ctx.pool,
         "add_entry",
         "entry",
         Some(entry_id),
@@ -270,6 +288,7 @@ pub async fn add_entry(pool: &SqlitePool, input: NewEntry, source: &str) -> anyh
         &input.title,
     )
     .await?;
+    embed::store_entry_embedding(ctx, entry_id, &input.title, &input.body).await;
     Ok(Entry {
         id: entry_id,
         occurred_at: occurred,
@@ -282,42 +301,23 @@ pub async fn add_entry(pool: &SqlitePool, input: NewEntry, source: &str) -> anyh
     })
 }
 
-/// M1 用 LIKE 检索；M2 换成 FTS5 + 向量混合检索。
-pub async fn search_entries(
-    pool: &SqlitePool,
-    query: &str,
-    top_k: i64,
-) -> anyhow::Result<Vec<Entry>> {
-    let pattern = format!("%{}%", query.replace(['%', '_'], ""));
-    let rows = sqlx::query_as::<_, EntryRaw>(
-        "SELECT id, occurred_at, kind, title, body, tags, created_at FROM entries \
-         WHERE title LIKE ?1 OR body LIKE ?1 \
-         ORDER BY occurred_at DESC, id DESC LIMIT ?2",
-    )
-    .bind(pattern)
-    .bind(top_k)
-    .fetch_all(pool)
-    .await?;
-    finish_entries(pool, rows).await
-}
-
-pub async fn recent_entries(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<Entry>> {
+pub async fn recent_entries(ctx: &Ctx, limit: i64) -> anyhow::Result<Vec<Entry>> {
     let rows = sqlx::query_as::<_, EntryRaw>(
         "SELECT id, occurred_at, kind, title, body, tags, created_at FROM entries \
          ORDER BY occurred_at DESC, id DESC LIMIT ?1",
     )
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&ctx.pool)
     .await?;
-    finish_entries(pool, rows).await
+    finish_entries(&ctx.pool, rows).await
 }
 
-pub async fn list_audit(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<AuditRow>> {
+pub async fn list_audit(ctx: &Ctx, limit: i64) -> anyhow::Result<Vec<AuditRow>> {
     Ok(sqlx::query_as::<_, AuditRow>(
         "SELECT id, at, action, object_type, object_id, source, summary \
          FROM audit_log ORDER BY id DESC LIMIT ?1",
     )
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&ctx.pool)
     .await?)
 }

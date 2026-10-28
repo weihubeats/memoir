@@ -5,10 +5,20 @@ use rmcp::{
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler, ServiceExt,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+
+use core::ctx::Ctx;
 
 fn mcp_err(e: anyhow::Error) -> McpError {
     McpError::internal_error(e.to_string(), None)
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct GetContextParams {
+    /// 用户本轮的问题/话题，用于检索相关历史
+    #[serde(default)]
+    pub query: Option<String>,
+    #[serde(default)]
+    pub max_chars: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
@@ -33,6 +43,14 @@ pub struct RecentEntriesParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct MonthlyReportParams {
+    #[serde(default)]
+    pub year: Option<i32>,
+    #[serde(default)]
+    pub month: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AddEntryParams {
     pub title: String,
     pub body: String,
@@ -54,6 +72,7 @@ pub struct UpsertFactParams {
     pub value: String,
     #[serde(default)]
     pub domain: Option<String>,
+    /// normal / sensitive / secret；收入数额、持仓明细、健康异常、感情状况用 sensitive，卡号证件号等标识符用 secret
     #[serde(default)]
     pub sensitivity: Option<String>,
 }
@@ -67,20 +86,37 @@ pub struct AddEntityParams {
     pub domain: Option<String>,
 }
 
-/// 个人上下文 MCP server：档案读取 / 记录检索 / 对话即采集。
+/// 个人上下文 MCP server：档案注入 / 混合检索 / 对话即采集 / 月报。
 #[derive(Clone)]
 pub struct MyContextServer {
-    pool: SqlitePool,
+    ctx: Ctx,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl MyContextServer {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(ctx: Ctx) -> Self {
         Self {
-            pool,
+            ctx,
             tool_router: Self::tool_router(),
         }
+    }
+
+    #[tool(
+        description = "获取注入上下文（每轮对话开始调用一次）：个人档案摘要 + 按话题检索的相关历史，总量受预算约束。query 传用户本轮的问题或话题。"
+    )]
+    async fn get_context(
+        &self,
+        Parameters(p): Parameters<GetContextParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let text = core::context::get_context(
+            &self.ctx,
+            p.query.as_deref(),
+            p.max_chars.unwrap_or(core::context::DEFAULT_BUDGET_CHARS),
+        )
+        .await
+        .map_err(mcp_err)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     #[tool(
@@ -91,7 +127,7 @@ impl MyContextServer {
         Parameters(p): Parameters<GetProfileParams>,
     ) -> Result<CallToolResult, McpError> {
         let text = core::profile::get_profile(
-            &self.pool,
+            &self.ctx,
             core::profile::ProfileOptions {
                 domains: p.domains,
                 include_sensitive: p.include_sensitive.unwrap_or(false),
@@ -103,14 +139,19 @@ impl MyContextServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(description = "按关键词检索个人历史记录（日记/事件/对话摘录）。")]
+    #[tool(description = "按关键词+语义混合检索个人历史记录（日记/事件/对话摘录）。")]
     async fn search_entries(
         &self,
         Parameters(p): Parameters<SearchEntriesParams>,
     ) -> Result<CallToolResult, McpError> {
-        let entries = core::repo::search_entries(&self.pool, &p.query, p.top_k.unwrap_or(10))
-            .await
-            .map_err(mcp_err)?;
+        let entries = core::search::search_entries(
+            &self.ctx,
+            &p.query,
+            p.top_k.unwrap_or(core::search::DEFAULT_TOP_K),
+            core::search::DEFAULT_MAX_CHARS,
+        )
+        .await
+        .map_err(mcp_err)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             render_entries(&entries),
         )]))
@@ -121,12 +162,30 @@ impl MyContextServer {
         &self,
         Parameters(p): Parameters<RecentEntriesParams>,
     ) -> Result<CallToolResult, McpError> {
-        let entries = core::repo::recent_entries(&self.pool, p.limit.unwrap_or(10))
+        let entries = core::repo::recent_entries(&self.ctx, p.limit.unwrap_or(10))
             .await
             .map_err(mcp_err)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             render_entries(&entries),
         )]))
+    }
+
+    #[tool(
+        description = "生成本月（或指定月份）上下文月报材料：本月记录、待确认事实、操作统计。请基于它向用户做月度回顾。"
+    )]
+    async fn get_monthly_report(
+        &self,
+        Parameters(p): Parameters<MonthlyReportParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let (year, month) = core::report::current_month();
+        let text = core::report::monthly_report(
+            &self.ctx,
+            p.year.unwrap_or(year),
+            p.month.unwrap_or(month),
+        )
+        .await
+        .map_err(mcp_err)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     #[tool(
@@ -137,7 +196,7 @@ impl MyContextServer {
         Parameters(p): Parameters<AddEntryParams>,
     ) -> Result<CallToolResult, McpError> {
         let entry = core::repo::add_entry(
-            &self.pool,
+            &self.ctx,
             core::model::NewEntry {
                 kind: p.kind.unwrap_or_else(|| "chat".to_owned()),
                 title: p.title,
@@ -157,14 +216,14 @@ impl MyContextServer {
     }
 
     #[tool(
-        description = "更新一条个人事实（如身高、就职公司、持仓）。旧值自动封口保留历史。用户提到新的个人信息时应调用此工具落库。"
+        description = "更新一条个人事实（如身高、就职公司、持仓、父母情况）。旧值自动封口保留历史。用户提到持久的个人信息时调用；一次性事件用 add_entry。"
     )]
     async fn upsert_fact(
         &self,
         Parameters(p): Parameters<UpsertFactParams>,
     ) -> Result<CallToolResult, McpError> {
         let (new_fact, superseded) = core::repo::upsert_fact(
-            &self.pool,
+            &self.ctx,
             core::model::FactUpsert {
                 entity_name: p.entity,
                 key: p.key,
@@ -193,7 +252,7 @@ impl MyContextServer {
         Parameters(p): Parameters<AddEntityParams>,
     ) -> Result<CallToolResult, McpError> {
         let entity = core::repo::add_entity(
-            &self.pool,
+            &self.ctx,
             &p.name,
             p.kind.as_deref().unwrap_or("topic"),
             p.domain.as_deref(),
@@ -232,14 +291,21 @@ impl ServerHandler for MyContextServer {
                     .with_title("my-context 个人上下文中枢"),
             )
             .with_instructions(
-                "这是用户的个人上下文库。回答前先 get_profile 了解用户；需要历史细节用 search_entries / recent_entries；用户提到新的个人信息时用 upsert_fact / add_entry 落库。",
+                "这是用户的个人上下文库（健康/财务/职业/家庭/偏好等，敏感分级 normal/sensitive/secret）。\
+                 使用规则：\
+                 1) 每轮对话开始调用 get_context（query 传用户本轮问题）获取档案与相关历史再回答；\
+                 2) 用户提到持久的个人信息（身高体重、就职、收入资产、家人情况、偏好目标）→ upsert_fact；\
+                 一次性事件与感受 → add_entry；\
+                 3) sensitivity 默认 normal；收入数额、持仓明细、健康异常、感情状况标 sensitive；\
+                 卡号/证件号/账号密码等标识符标 secret；\
+                 4) 给建议时引用具体事实与记录，档案里没有的不要臆测。",
             )
     }
 }
 
 /// 以 stdio 运行 MCP server（CLI `serve` 子命令的入口）。
-pub async fn serve_stdio(pool: SqlitePool) -> anyhow::Result<()> {
-    let service = MyContextServer::new(pool)
+pub async fn serve_stdio(ctx: Ctx) -> anyhow::Result<()> {
+    let service = MyContextServer::new(ctx)
         .serve(rmcp::transport::stdio())
         .await?;
     service.waiting().await?;

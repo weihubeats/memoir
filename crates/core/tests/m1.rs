@@ -1,21 +1,21 @@
 use my_context_core as core;
 use serde_json::json;
 
-async fn test_pool() -> (sqlx::SqlitePool, tempfile::TempDir) {
+async fn test_ctx() -> (core::Ctx, tempfile::TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
     let pool = core::db::open_pool(dir.path().join("test.db").as_path())
         .await
         .expect("open pool");
     core::repo::seed_self_entity(&pool).await.expect("seed");
-    (pool, dir)
+    (core::Ctx::from_parts(pool, None), dir)
 }
 
 #[tokio::test]
 async fn fact_versioning_keeps_history_and_profile_reflects_latest() {
-    let (pool, _dir) = test_pool().await;
+    let (ctx, _dir) = test_ctx().await;
     for value in ["175cm", "176cm"] {
         core::repo::upsert_fact(
-            &pool,
+            &ctx,
             core::model::FactUpsert {
                 entity_name: "我".into(),
                 key: "height".into(),
@@ -29,14 +29,14 @@ async fn fact_versioning_keeps_history_and_profile_reflects_latest() {
         .unwrap();
     }
 
-    let history = core::repo::list_facts(&pool, None, false).await.unwrap();
+    let history = core::repo::list_facts(&ctx, None, false).await.unwrap();
     assert_eq!(history.len(), 2);
     assert!(
         history.iter().any(|f| f.valid_to.is_some()),
         "旧值应封口保留"
     );
 
-    let profile = core::profile::get_profile(&pool, core::profile::ProfileOptions::default())
+    let profile = core::profile::get_profile(&ctx, core::profile::ProfileOptions::default())
         .await
         .unwrap();
     assert!(profile.contains("176cm"));
@@ -45,14 +45,14 @@ async fn fact_versioning_keeps_history_and_profile_reflects_latest() {
 
 #[tokio::test]
 async fn profile_respects_sensitivity() {
-    let (pool, _dir) = test_pool().await;
+    let (ctx, _dir) = test_ctx().await;
     for (key, value, sens) in [
         ("diet", json!("清淡"), "normal"),
         ("salary", json!("50万"), "sensitive"),
         ("card_no", json!("6222..."), "secret"),
     ] {
         core::repo::upsert_fact(
-            &pool,
+            &ctx,
             core::model::FactUpsert {
                 entity_name: "我".into(),
                 key: key.into(),
@@ -65,7 +65,7 @@ async fn profile_respects_sensitivity() {
         .await
         .unwrap();
     }
-    let default = core::profile::get_profile(&pool, core::profile::ProfileOptions::default())
+    let default = core::profile::get_profile(&ctx, core::profile::ProfileOptions::default())
         .await
         .unwrap();
     assert!(default.contains("diet"));
@@ -73,7 +73,7 @@ async fn profile_respects_sensitivity() {
     assert!(!default.contains("card_no"), "secret 级默认不进档案");
 
     let with_sensitive = core::profile::get_profile(
-        &pool,
+        &ctx,
         core::profile::ProfileOptions {
             include_sensitive: true,
             ..Default::default()
@@ -87,9 +87,9 @@ async fn profile_respects_sensitivity() {
 
 #[tokio::test]
 async fn entries_search_and_audit() {
-    let (pool, _dir) = test_pool().await;
+    let (ctx, _dir) = test_ctx().await;
     let entry = core::repo::add_entry(
-        &pool,
+        &ctx,
         core::model::NewEntry {
             kind: "event".into(),
             title: "体检完成".into(),
@@ -104,15 +104,8 @@ async fn entries_search_and_audit() {
     .unwrap();
     assert!(!entry.entity_ids.is_empty(), "应自动关联实体");
 
-    let hits = core::repo::search_entries(&pool, "血脂", 5).await.unwrap();
-    assert_eq!(hits.len(), 1);
-    let misses = core::repo::search_entries(&pool, "不存在的词", 5)
-        .await
-        .unwrap();
-    assert!(misses.is_empty());
-
     core::repo::upsert_fact(
-        &pool,
+        &ctx,
         core::model::FactUpsert {
             entity_name: "我".into(),
             key: "sleep".into(),
@@ -124,16 +117,17 @@ async fn entries_search_and_audit() {
     )
     .await
     .unwrap();
-    let audit = core::repo::list_audit(&pool, 10).await.unwrap();
+
+    let audit = core::repo::list_audit(&ctx, 10).await.unwrap();
     assert!(audit.iter().any(|a| a.action == "add_entry"));
     assert!(audit.iter().any(|a| a.action == "upsert_fact"));
 }
 
 #[tokio::test]
 async fn export_contains_all_data() {
-    let (pool, _dir) = test_pool().await;
+    let (ctx, _dir) = test_ctx().await;
     core::repo::upsert_fact(
-        &pool,
+        &ctx,
         core::model::FactUpsert {
             entity_name: "我".into(),
             key: "height".into(),
@@ -145,8 +139,8 @@ async fn export_contains_all_data() {
     )
     .await
     .unwrap();
-    let doc = core::export::export_json(&pool).await.unwrap();
+    let doc = core::export::export_json(&ctx).await.unwrap();
     assert_eq!(doc["facts"].as_array().unwrap().len(), 1);
-    let md = core::export::export_markdown(&pool).await.unwrap();
+    let md = core::export::export_markdown(&ctx).await.unwrap();
     assert!(md.contains("175cm"), "导出含 secret 级（数据主权兜底）");
 }

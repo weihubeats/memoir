@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use crate::ctx::Ctx;
 
 #[derive(Debug, Clone, Default)]
 pub struct ProfileOptions {
@@ -22,13 +22,13 @@ struct ProfileRow {
 
 /// 档案摘要：当前有效事实按域分组的紧凑文本，可直接作为注入上下文。
 /// secret 级除显式 include_secret（导出）外永不出现。
-pub async fn get_profile(pool: &SqlitePool, opts: ProfileOptions) -> anyhow::Result<String> {
+pub async fn get_profile(ctx: &Ctx, opts: ProfileOptions) -> anyhow::Result<String> {
     let rows = sqlx::query_as::<_, ProfileRow>(
         "SELECT e.name AS entity_name, f.key, f.value, f.domain, f.sensitivity, f.valid_from \
          FROM facts f JOIN entities e ON e.id = f.entity_id \
          WHERE f.valid_to IS NULL ORDER BY f.domain, e.name, f.key",
     )
-    .fetch_all(pool)
+    .fetch_all(&ctx.pool)
     .await?;
 
     let mut lines: Vec<String> = Vec::new();

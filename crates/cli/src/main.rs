@@ -30,6 +30,24 @@ enum Command {
         #[command(subcommand)]
         kind: ListKind,
     },
+    /// 混合检索历史记录（FTS5 + 向量，RRF 融合）
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 8)]
+        top_k: i64,
+    },
+    /// 生成上下文月报材料（本月记录 / 待确认事实 / 操作统计）
+    Report {
+        #[arg(long)]
+        year: Option<i32>,
+        #[arg(long)]
+        month: Option<u32>,
+    },
+    /// 为存量记录补 embedding（需配置 MY_CONTEXT_EMBED_MODEL）
+    Embed {
+        #[arg(long, default_value_t = 16)]
+        batch: usize,
+    },
     /// 导出全库（数据主权兜底）
     Export {
         /// json 或 markdown
@@ -106,148 +124,183 @@ enum ListKind {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let db = core::db::default_db_path()?;
+    let embedder = core::embed::from_env();
+
+    macro_rules! with_ctx {
+        ($ctx:ident => $body:expr) => {{
+            let $ctx = core::Ctx::open(&db, embedder).await?;
+            let result: anyhow::Result<()> = $body.await;
+            $ctx.pool.close().await;
+            result
+        }};
+    }
 
     match cli.command {
         Command::Init => {
-            let pool = core::db::ensure_pool(&db).await?;
-            pool.close().await;
+            let ctx = core::Ctx::open(&db, embedder).await?;
+            ctx.pool.close().await;
             println!("已初始化：{}", db.display());
         }
         Command::Serve => {
-            let pool = core::db::ensure_pool(&db).await?;
-            my_context_mcp::serve_stdio(pool).await?;
+            let ctx = core::Ctx::open(&db, embedder).await?;
+            my_context_mcp::serve_stdio(ctx).await?;
         }
         Command::Add { kind } => {
-            let pool = core::db::ensure_pool(&db).await?;
-            match kind {
-                AddKind::Entity { name, kind, domain } => {
-                    let e = core::repo::add_entity(&pool, &name, &kind, domain.as_deref()).await?;
-                    println!("实体已创建：{}（#{}, {}）", e.name, e.id, e.kind);
+            with_ctx!(ctx => async {
+                match kind {
+                    AddKind::Entity { name, kind, domain } => {
+                        let e =
+                            core::repo::add_entity(&ctx, &name, &kind, domain.as_deref()).await?;
+                        println!("实体已创建：{}（#{}, {}）", e.name, e.id, e.kind);
+                    }
+                    AddKind::Fact { entity, key, value, domain, sensitivity } => {
+                        let (f, superseded) = core::repo::upsert_fact(
+                            &ctx,
+                            core::model::FactUpsert {
+                                entity_name: entity,
+                                key,
+                                value: core::model::coerce_value(&value),
+                                domain,
+                                sensitivity,
+                                source_entry_id: None,
+                            },
+                        )
+                        .await?;
+                        println!(
+                            "{}：#{}  {} = {}",
+                            if superseded.is_some() {
+                                "事实已更新（旧值封口）"
+                            } else {
+                                "事实已新增"
+                            },
+                            f.id,
+                            f.key,
+                            f.value
+                        );
+                    }
+                    AddKind::Entry { title, body, kind, tags, entities, occurred_at } => {
+                        let e = core::repo::add_entry(
+                            &ctx,
+                            core::model::NewEntry {
+                                kind,
+                                title,
+                                body,
+                                tags,
+                                entity_names: entities,
+                                occurred_at,
+                            },
+                            "cli",
+                        )
+                        .await?;
+                        println!("记录已写入：#{} {}", e.id, e.title);
+                    }
                 }
-                AddKind::Fact {
-                    entity,
-                    key,
-                    value,
-                    domain,
-                    sensitivity,
-                } => {
-                    let (f, superseded) = core::repo::upsert_fact(
-                        &pool,
-                        core::model::FactUpsert {
-                            entity_name: entity,
-                            key,
-                            value: core::model::coerce_value(&value),
-                            domain,
-                            sensitivity,
-                            source_entry_id: None,
-                        },
-                    )
-                    .await?;
-                    println!(
-                        "{}：#{}  {} = {}",
-                        if superseded.is_some() {
-                            "事实已更新（旧值封口）"
-                        } else {
-                            "事实已新增"
-                        },
-                        f.id,
-                        f.key,
-                        f.value
-                    );
-                }
-                AddKind::Entry {
-                    title,
-                    body,
-                    kind,
-                    tags,
-                    entities,
-                    occurred_at,
-                } => {
-                    let e = core::repo::add_entry(
-                        &pool,
-                        core::model::NewEntry {
-                            kind,
-                            title,
-                            body,
-                            tags,
-                            entity_names: entities,
-                            occurred_at,
-                        },
-                        "cli",
-                    )
-                    .await?;
-                    println!("记录已写入：#{} {}", e.id, e.title);
-                }
-            }
-            pool.close().await;
+                Ok(())
+            })?;
         }
         Command::List { kind } => {
-            let pool = core::db::ensure_pool(&db).await?;
-            match kind {
-                ListKind::Entities => {
-                    for e in core::repo::list_entities(&pool).await? {
-                        println!(
-                            "#{} [{}] {}  domain={} status={}",
-                            e.id,
-                            e.kind,
-                            e.name,
-                            e.domain.as_deref().unwrap_or("-"),
-                            e.status
-                        );
+            with_ctx!(ctx => async {
+                match kind {
+                    ListKind::Entities => {
+                        for e in core::repo::list_entities(&ctx).await? {
+                            println!(
+                                "#{} [{}] {}  domain={} status={}",
+                                e.id,
+                                e.kind,
+                                e.name,
+                                e.domain.as_deref().unwrap_or("-"),
+                                e.status
+                            );
+                        }
                     }
-                }
-                ListKind::Facts { entity, active } => {
-                    let entity_id = match entity.as_deref() {
-                        Some(name) => Some(
-                            core::repo::find_entity_by_name(&pool, name)
-                                .await?
-                                .ok_or_else(|| anyhow::anyhow!("实体不存在：{name}"))?
-                                .id,
-                        ),
-                        None => None,
-                    };
-                    for f in core::repo::list_facts(&pool, entity_id, active).await? {
-                        println!(
-                            "#{} entity#{} [{}] {} = {}  自 {}{}",
-                            f.id,
-                            f.entity_id,
-                            f.sensitivity,
-                            f.key,
-                            f.value,
-                            f.valid_from,
-                            match &f.valid_to {
-                                Some(t) => format!("  至 {t}（历史）"),
-                                None => String::new(),
+                    ListKind::Facts { entity, active } => {
+                        let entity_id = match entity.as_deref() {
+                            Some(name) => Some(
+                                core::repo::find_entity_by_name(&ctx.pool, name)
+                                    .await?
+                                    .ok_or_else(|| anyhow::anyhow!("实体不存在：{name}"))?
+                                    .id,
+                            ),
+                            None => None,
+                        };
+                        for f in core::repo::list_facts(&ctx, entity_id, active).await? {
+                            println!(
+                                "#{} entity#{} [{}] {} = {}  自 {}{}",
+                                f.id,
+                                f.entity_id,
+                                f.sensitivity,
+                                f.key,
+                                f.value,
+                                f.valid_from,
+                                match &f.valid_to {
+                                    Some(t) => format!("  至 {t}（历史）"),
+                                    None => String::new(),
+                                }
+                            );
+                        }
+                    }
+                    ListKind::Entries { limit } => {
+                        for e in core::repo::recent_entries(&ctx, limit).await? {
+                            println!("#{} [{}] {}  {}", e.id, e.kind, e.occurred_at, e.title);
+                            if !e.body.is_empty() {
+                                println!("    {}", e.body.replace('\n', "\n    "));
                             }
-                        );
-                    }
-                }
-                ListKind::Entries { limit } => {
-                    for e in core::repo::recent_entries(&pool, limit).await? {
-                        println!("#{} [{}] {}  {}", e.id, e.kind, e.occurred_at, e.title);
-                        if !e.body.is_empty() {
-                            println!("    {}", e.body.replace('\n', "\n    "));
                         }
                     }
                 }
-            }
-            pool.close().await;
+                Ok(())
+            })?;
+        }
+        Command::Search { query, top_k } => {
+            with_ctx!(ctx => async {
+                let entries =
+                    core::search::search_entries(&ctx, &query, top_k, core::search::DEFAULT_MAX_CHARS)
+                        .await?;
+                if entries.is_empty() {
+                    println!("（无匹配记录）");
+                }
+                for e in &entries {
+                    println!("#{} [{}] {}  {}", e.id, e.kind, e.occurred_at, e.title);
+                    if !e.body.is_empty() {
+                        println!("    {}", e.body.replace('\n', "\n    "));
+                    }
+                }
+                Ok(())
+            })?;
+        }
+        Command::Report { year, month } => {
+            with_ctx!(ctx => async {
+                let (cy, cm) = core::report::current_month();
+                let text = core::report::monthly_report(&ctx, year.unwrap_or(cy), month.unwrap_or(cm)).await?;
+                print!("{text}");
+                Ok(())
+            })?;
+        }
+        Command::Embed { batch } => {
+            with_ctx!(ctx => async {
+                let n = core::embed::backfill(&ctx, batch).await?;
+                println!("已为 {n} 条记录生成 embedding");
+                Ok(())
+            })?;
         }
         Command::Export { format, out } => {
-            let pool = core::db::ensure_pool(&db).await?;
-            let text = match format.as_str() {
-                "json" => serde_json::to_string_pretty(&core::export::export_json(&pool).await?)?,
-                "markdown" | "md" => core::export::export_markdown(&pool).await?,
-                other => anyhow::bail!("不支持的格式：{other}（可选 json / markdown）"),
-            };
-            match out {
-                Some(path) => {
-                    std::fs::write(&path, text)?;
-                    println!("已导出到 {}", path.display());
+            with_ctx!(ctx => async {
+                let text = match format.as_str() {
+                    "json" => {
+                        serde_json::to_string_pretty(&core::export::export_json(&ctx).await?)?
+                    }
+                    "markdown" | "md" => core::export::export_markdown(&ctx).await?,
+                    other => anyhow::bail!("不支持的格式：{other}（可选 json / markdown）"),
+                };
+                match out {
+                    Some(path) => {
+                        std::fs::write(&path, text)?;
+                        println!("已导出到 {}", path.display());
+                    }
+                    None => print!("{text}"),
                 }
-                None => print!("{text}"),
-            }
-            pool.close().await;
+                Ok(())
+            })?;
         }
     }
     Ok(())
