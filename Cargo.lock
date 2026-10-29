@@ -2251,6 +2251,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "memoir-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "memoir-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tokio",
+]
+
+[[package]]
+name = "memoir-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "memoir-core",
+ "memoir-mcp",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "memoir-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dirs",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "memoir-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "memoir-core",
+ "rmcp",
+ "schemars 1.2.3",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2306,61 +2361,6 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "my-context-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "my-context-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tokio",
-]
-
-[[package]]
-name = "my-context-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "my-context-core",
- "my-context-mcp",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "my-context-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "dirs",
- "reqwest",
- "serde",
- "serde_json",
- "sqlx",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "my-context-mcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "my-context-core",
- "rmcp",
- "schemars 1.2.3",
- "serde",
- "serde_json",
- "sqlx",
- "tokio",
 ]
 
 [[package]]

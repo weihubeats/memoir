@@ -6,15 +6,15 @@ use sqlx::SqlitePool;
 
 use crate::repo;
 
-pub const DB_ENV_VAR: &str = "MY_CONTEXT_DB";
+pub const DB_ENV_VAR: &str = "MEMOIR_DB";
 
-/// 库文件路径：环境变量 `MY_CONTEXT_DB` 优先，否则落到系统数据目录。
+/// 库文件路径：环境变量 `MEMOIR_DB` 优先，否则落到系统数据目录。
 pub fn default_db_path() -> anyhow::Result<PathBuf> {
     if let Ok(p) = std::env::var(DB_ENV_VAR) {
         return Ok(PathBuf::from(p));
     }
     let base = dirs::data_dir().ok_or_else(|| anyhow::anyhow!("无法确定系统数据目录"))?;
-    Ok(base.join("my-context").join("my-context.db"))
+    Ok(base.join("memoir").join("memoir.db"))
 }
 
 pub async fn open_pool(path: &Path) -> anyhow::Result<SqlitePool> {

@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use my_context_core as core;
+use memoir_core as core;
 
 #[derive(Parser)]
 #[command(
-    name = "my-context",
+    name = "memoir",
     version,
     about = "个人上下文中枢：把个人的所有信息存一处，供 AI 读取"
 )]
@@ -43,7 +43,7 @@ enum Command {
         #[arg(long)]
         month: Option<u32>,
     },
-    /// 为存量记录补 embedding（需配置 MY_CONTEXT_EMBED_MODEL）
+    /// 为存量记录补 embedding（需配置 MEMOIR_EMBED_MODEL）
     Embed {
         #[arg(long, default_value_t = 16)]
         batch: usize,
@@ -143,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Serve => {
             let ctx = core::Ctx::open(&db, embedder).await?;
-            my_context_mcp::serve_stdio(ctx).await?;
+            memoir_mcp::serve_stdio(ctx).await?;
         }
         Command::Add { kind } => {
             with_ctx!(ctx => async {

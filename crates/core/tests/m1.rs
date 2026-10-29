@@ -1,4 +1,4 @@
-use my_context_core as core;
+use memoir_core as core;
 use serde_json::json;
 
 async fn test_ctx() -> (core::Ctx, tempfile::TempDir) {

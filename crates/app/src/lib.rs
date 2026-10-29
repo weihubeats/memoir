@@ -1,6 +1,6 @@
 pub mod commands;
 
-use my_context_core as core;
+use memoir_core as core;
 use tauri::Manager;
 
 pub struct AppState {
@@ -48,5 +48,5 @@ pub fn run() {
             commands::merge_entities,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running my-context desktop app");
+        .expect("error while running memoir desktop app");
 }

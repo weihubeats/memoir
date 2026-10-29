@@ -1,17 +1,17 @@
 [package]
-name = "my-context-app"
+name = "memoir-app"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "my_context_app_lib"
+name = "memoir_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-my-context-core = { path = "../core" }
+memoir-core = { path = "../core" }
 tauri = { version = "2", features = [] }
 serde.workspace = true
 serde_json.workspace = true

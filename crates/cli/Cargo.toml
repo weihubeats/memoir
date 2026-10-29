@@ -1,15 +1,15 @@
 [package]
-name = "my-context-cli"
+name = "memoir-cli"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "my-context"
+name = "memoir"
 path = "src/main.rs"
 
 [dependencies]
-my-context-core = { path = "../core" }
-my-context-mcp = { path = "../mcp" }
+memoir-core = { path = "../core" }
+memoir-mcp = { path = "../mcp" }
 anyhow.workspace = true
 tokio.workspace = true
 clap = { version = "4", features = ["derive"] }

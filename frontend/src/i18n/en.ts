@@ -1,7 +1,7 @@
 import type { I18nKey } from './zh'
 
 export const en: Record<I18nKey, string> = {
-  'app.name': 'my-context · Personal Context',
+  'app.name': 'Memoir · Personal Context',
   'app.searchPlaceholder': 'Global search (⌘K, Enter opens timeline)',
 
   'nav.profile': 'Profile',
@@ -91,7 +91,7 @@ export const en: Record<I18nKey, string> = {
   'settings.exportRun': 'Export',
   'settings.mcpTitle': 'MCP integration (AI clients read your context)',
   'settings.mcpHint':
-    'Add the snippet below to Claude / ZCode etc.; replace command with the absolute path of the my-context binary.',
+    'Add the snippet below to Claude / ZCode etc.; replace command with the absolute path of the memoir binary.',
   'settings.contextTitle': 'Context preview (what the AI actually sees each turn)',
   'settings.contextRun': 'Preview',
 }

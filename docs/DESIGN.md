@@ -1,4 +1,4 @@
-# my-context 设计文档
+# Memoir 设计文档
 
 > 状态：v0.1 草案（2026-10-29）
 
@@ -90,7 +90,7 @@ SQLite(单文件) ←→ Rust 核心(存储/检索/注入策略) ←→ MCP Serv
 | 主存储 | SQLite（sqlx） | 单文件、零运维、易备份/导出；团队已熟练 |
 | 全文检索 | SQLite FTS5（trigram 分词） | 中文子串可用；<3 字符查询回退 LIKE |
 | 语义检索 | embeddings 表 + Rust 暴力余弦 | 个人库千条量级足够，省掉 sqlite-vec 扩展加载；量大再换 |
-| 嵌入模型 | 本地 Ollama（如 bge-m3，`MY_CONTEXT_EMBED_MODEL` 配置） | 隐私：嵌入计算不出本机；未配置则纯关键词检索 |
+| 嵌入模型 | 本地 Ollama（如 bge-m3，`MEMOIR_EMBED_MODEL` 配置） | 隐私：嵌入计算不出本机；未配置则纯关键词检索 |
 
 否决的备选：纯 Markdown 文件库（事实的时间版本化与一致性难维护，量大了检索差）；服务端多租户架构（隐私风险与运维成本，与「数据主权」目标冲突）。
 
@@ -228,7 +228,7 @@ SQLite(单文件) ←→ Rust 核心(存储/检索/注入策略) ←→ MCP Serv
 ```
 crates/core   存储与领域：db(连接/迁移) / repo(实体·事实·记录·审计) / profile(档案注入) / export(导出)
 crates/mcp    rmcp stdio server：get_profile / search_entries / recent_entries / add_entry / upsert_fact / add_entity
-crates/cli    my-context 二进制：init / add / list / export / serve
+crates/cli    memoir 二进制：init / add / list / export / serve
 ```
 
 实现与 §2.1 的一处偏差：`domain` 放在事实而非实体上（实体主域可选）——「我」这一个实体的事实横跨所有域，按实体域分组会把全部事实挤进同一组。

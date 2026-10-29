@@ -1,4 +1,4 @@
-use my_context_core as core;
+use memoir_core as core;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 

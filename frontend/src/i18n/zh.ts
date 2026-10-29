@@ -1,5 +1,5 @@
 export const zh = {
-  'app.name': 'my-context 个人上下文',
+  'app.name': 'Memoir 个人上下文',
   'app.searchPlaceholder': '全局搜索（⌘K，回车跳转时间线）',
 
   'nav.profile': '档案',
@@ -88,7 +88,7 @@ export const zh = {
   'settings.exportFormat': '格式',
   'settings.exportRun': '导出',
   'settings.mcpTitle': 'MCP 接入（AI 客户端读取上下文）',
-  'settings.mcpHint': '把下面的配置加进 Claude / ZCode 等客户端，command 换成 my-context 可执行文件的绝对路径。',
+  'settings.mcpHint': '把下面的配置加进 Claude / ZCode 等客户端，command 换成 memoir 可执行文件的绝对路径。',
   'settings.contextTitle': '注入预览（AI 每轮对话实际看到的上下文）',
   'settings.contextRun': '生成预览',
 }

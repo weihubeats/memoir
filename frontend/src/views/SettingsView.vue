@@ -16,7 +16,7 @@ const previewing = ref(false)
 
 const mcpSnippet = `{
   "mcpServers": {
-    "my-context": { "command": "/path/to/my-context", "args": ["serve"] }
+    "memoir": { "command": "/path/to/memoir", "args": ["serve"] }
   }
 }`
 

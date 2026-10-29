@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use my_context_core as core;
+use memoir_core as core;
 use serde_json::json;
 
 /// 确定性 mock：按关键词映射到固定向量，验证向量通道与 RRF 融合。

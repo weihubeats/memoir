@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    my_context_app_lib::run()
+    memoir_app_lib::run()
 }

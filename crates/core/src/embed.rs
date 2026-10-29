@@ -6,8 +6,8 @@ use serde_json::json;
 
 use crate::Ctx;
 
-pub const EMBED_BASE_ENV: &str = "MY_CONTEXT_EMBED_BASE";
-pub const EMBED_MODEL_ENV: &str = "MY_CONTEXT_EMBED_MODEL";
+pub const EMBED_BASE_ENV: &str = "MEMOIR_EMBED_BASE";
+pub const EMBED_MODEL_ENV: &str = "MEMOIR_EMBED_MODEL";
 
 /// 嵌入模型抽象。M2 用 Ollama 本地 HTTP（嵌入计算不出本机）；不配置即纯关键词检索。
 #[async_trait]
@@ -16,7 +16,7 @@ pub trait Embedder: Send + Sync {
     async fn embed(&self, texts: Vec<String>) -> anyhow::Result<Vec<Vec<f32>>>;
 }
 
-/// 设了 `MY_CONTEXT_EMBED_MODEL` 才启用（默认指向本机 Ollama，`MY_CONTEXT_EMBED_BASE` 可覆盖）。
+/// 设了 `MEMOIR_EMBED_MODEL` 才启用（默认指向本机 Ollama，`MEMOIR_EMBED_BASE` 可覆盖）。
 pub fn from_env() -> Option<Arc<dyn Embedder>> {
     let model = std::env::var(EMBED_MODEL_ENV)
         .ok()
@@ -125,7 +125,7 @@ pub async fn store_entry_embedding(ctx: &Ctx, entry_id: i64, title: &str, body: 
 /// 为存量记录补 embedding；换模型时重建（个人库量级，全量跑也很快）。
 pub async fn backfill(ctx: &Ctx, batch: usize) -> anyhow::Result<usize> {
     let Some(embedder) = &ctx.embedder else {
-        anyhow::bail!("未配置嵌入模型（设置 MY_CONTEXT_EMBED_MODEL 后重试）")
+        anyhow::bail!("未配置嵌入模型（设置 MEMOIR_EMBED_MODEL 后重试）")
     };
     let model = embedder.name().to_owned();
     sqlx::query("DELETE FROM embeddings WHERE model != ?1")

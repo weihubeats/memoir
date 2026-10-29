@@ -1,10 +1,10 @@
 [package]
-name = "my-context-mcp"
+name = "memoir-mcp"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-my-context-core = { path = "../core" }
+memoir-core = { path = "../core" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

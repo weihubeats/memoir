@@ -35,7 +35,7 @@ pub async fn export_json(ctx: &Ctx) -> anyhow::Result<Value> {
 }
 
 pub async fn export_markdown(ctx: &Ctx) -> anyhow::Result<String> {
-    let mut out = String::from("# my-context 全库导出\n\n");
+    let mut out = String::from("# memoir 全库导出\n\n");
     out.push_str("## 档案（当前有效事实）\n\n");
     out.push_str(
         &profile::get_profile(

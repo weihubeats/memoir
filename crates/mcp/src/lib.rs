@@ -1,4 +1,4 @@
-use my_context_core as core;
+use memoir_core as core;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
@@ -288,8 +288,8 @@ impl ServerHandler for MyContextServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(
-                Implementation::new("my-context", env!("CARGO_PKG_VERSION"))
-                    .with_title("my-context 个人上下文中枢"),
+                Implementation::new("memoir", env!("CARGO_PKG_VERSION"))
+                    .with_title("Memoir 个人上下文中枢"),
             )
             .with_instructions(
                 "这是用户的个人上下文库（健康/财务/职业/家庭/偏好等，敏感分级 normal/sensitive/secret）。\

@@ -1,5 +1,5 @@
 [package]
-name = "my-context-core"
+name = "memoir-core"
 version.workspace = true
 edition.workspace = true
 
