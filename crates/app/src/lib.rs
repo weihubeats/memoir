@@ -46,6 +46,14 @@ pub fn run() {
             commands::restore_entity,
             commands::purge_entity,
             commands::merge_entities,
+            commands::chat_new,
+            commands::chat_list,
+            commands::chat_delete,
+            commands::chat_messages,
+            commands::chat_send,
+            commands::apply_chat_op,
+            commands::settings_all,
+            commands::settings_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memoir desktop app");

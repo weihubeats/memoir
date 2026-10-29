@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useLocaleStore } from '../stores/locale'
 import { useWorkspaceStore } from '../stores/workspace'
 
@@ -13,6 +13,23 @@ const exporting = ref(false)
 const previewQuery = ref('')
 const preview = ref('')
 const previewing = ref(false)
+
+// 对话后端（M4）
+const chatForm = ref({
+  cloud_base_url: '',
+  cloud_api_key: '',
+  cloud_model: '',
+  local_base_url: '',
+  local_model: '',
+})
+const chatSaved = ref(false)
+async function saveChatBackend() {
+  for (const [k, v] of Object.entries(chatForm.value)) {
+    await ws.setSetting(k, v)
+  }
+  chatSaved.value = true
+  setTimeout(() => (chatSaved.value = false), 1500)
+}
 
 const mcpSnippet = `{
   "mcpServers": {
@@ -46,6 +63,14 @@ async function runPreview() {
     previewing.value = false
   }
 }
+
+onMounted(() => {
+  void ws.loadSettings().then(() => {
+    for (const key of Object.keys(chatForm.value) as (keyof typeof chatForm.value)[]) {
+      chatForm.value[key] = ws.settings[key] ?? ''
+    }
+  })
+})
 </script>
 
 <template>
@@ -70,6 +95,44 @@ async function runPreview() {
       </div>
       <div class="mc-dim mt-3 text-xs">
         {{ t('settings.dbPath') }}: <span data-test="db-path">{{ ws.info?.path ?? '…' }}</span>
+      </div>
+    </div>
+
+    <div class="mc-panel mb-5 p-4">
+      <h2 class="mc-dim mb-2 text-xs font-semibold uppercase">{{ t('settings.chatTitle') }}</h2>
+      <div class="mb-3 grid grid-cols-2 gap-4">
+        <div>
+          <h3 class="mb-2 text-xs font-medium">{{ t('settings.chatCloud') }}</h3>
+          <label class="mb-2 flex flex-col gap-1 text-xs">
+            {{ t('settings.baseUrl') }}
+            <input v-model="chatForm.cloud_base_url" class="mc-input" placeholder="https://open.bigmodel.cn/api/paas/v4" />
+          </label>
+          <label class="mb-2 flex flex-col gap-1 text-xs">
+            {{ t('settings.apiKey') }}
+            <input v-model="chatForm.cloud_api_key" class="mc-input" type="password" />
+          </label>
+          <label class="flex flex-col gap-1 text-xs">
+            {{ t('settings.model') }}
+            <input v-model="chatForm.cloud_model" class="mc-input" placeholder="glm-4.7" />
+          </label>
+        </div>
+        <div>
+          <h3 class="mb-2 text-xs font-medium">{{ t('settings.chatLocal') }}</h3>
+          <label class="mb-2 flex flex-col gap-1 text-xs">
+            {{ t('settings.baseUrl') }}
+            <input v-model="chatForm.local_base_url" class="mc-input" placeholder="http://127.0.0.1:11434/v1" />
+          </label>
+          <label class="flex flex-col gap-1 text-xs">
+            {{ t('settings.model') }}
+            <input v-model="chatForm.local_model" class="mc-input" placeholder="qwen3:14b" />
+          </label>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="mc-btn mc-btn-primary text-xs" @click="saveChatBackend">
+          {{ t('settings.save') }}
+        </button>
+        <span v-if="chatSaved" class="mc-dim text-xs">{{ t('settings.saved') }}</span>
       </div>
     </div>
 

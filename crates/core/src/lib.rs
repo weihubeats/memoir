@@ -1,3 +1,4 @@
+pub mod chat;
 pub mod ctx;
 pub mod db;
 pub mod embed;

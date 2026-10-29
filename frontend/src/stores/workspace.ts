@@ -1,6 +1,17 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { AuditRow, DbInfo, Entity, Entry, Fact, StaleFact, TrashData } from '../types'
+import type {
+  AuditRow,
+  ChatMessage,
+  ChatOp,
+  Conversation,
+  DbInfo,
+  Entity,
+  Entry,
+  Fact,
+  StaleFact,
+  TrashData,
+} from '../types'
 
 export interface UpsertFactPayload {
   entity: string
@@ -37,6 +48,10 @@ export const useWorkspaceStore = defineStore('workspace', {
     stale: [] as StaleFact[],
     trash: null as TrashData | null,
     entityFacts: [] as Fact[],
+    conversations: [] as Conversation[],
+    messages: [] as ChatMessage[],
+    activeConversationId: null as number | null,
+    settings: {} as Record<string, string>,
     loading: false,
     error: '',
   }),
@@ -164,6 +179,43 @@ export const useWorkspaceStore = defineStore('workspace', {
     async mergeEntities(sourceId: number, targetId: number) {
       await invoke('merge_entities', { sourceId, targetId })
       await Promise.all([this.reloadEntities(), this.reloadFacts(), this.reloadEntries()])
+    },
+
+    // ---------- 内置对话（M4） ----------
+    async loadConversations() {
+      this.conversations = await invoke<Conversation[]>('chat_list')
+    },
+    async openConversation(id: number) {
+      this.activeConversationId = id
+      this.messages = await invoke<ChatMessage[]>('chat_messages', { conversationId: id })
+    },
+    async newConversation(backend: 'cloud' | 'local') {
+      const c = await invoke<Conversation>('chat_new', { backend })
+      await this.loadConversations()
+      this.activeConversationId = c.id
+      this.messages = []
+    },
+    async deleteConversation(id: number) {
+      await invoke('chat_delete', { id })
+      if (this.activeConversationId === id) {
+        this.activeConversationId = null
+        this.messages = []
+      }
+      await this.loadConversations()
+    },
+    async sendMessage(content: string) {
+      if (!this.activeConversationId) return
+      await invoke('chat_send', { args: { conversationId: this.activeConversationId, content } })
+    },
+    async applyOp(messageId: number, opIndex: number, op: ChatOp): Promise<string> {
+      return invoke<string>('apply_chat_op', { args: { messageId, opIndex, op } })
+    },
+    async loadSettings() {
+      this.settings = await invoke<Record<string, string>>('settings_all')
+    },
+    async setSetting(key: string, value: string) {
+      await invoke('settings_set', { key, value })
+      this.settings[key] = value
     },
   },
 })

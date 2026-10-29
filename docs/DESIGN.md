@@ -238,5 +238,5 @@ crates/cli    memoir 二进制：init / add / list / export / serve
 - **M1 最小闭环**（已落地）：SQLite schema + 迁移；CLI（init/add/export）；MCP server（get_profile / search_entries / add_entry / upsert_fact）；接入 Claude/ZCode 完成一次真实对话
 - **M2 检索与采集增强**（已落地）：FTS5 trigram + 向量混合检索（RRF + 预算裁剪）；get_context 注入总入口；server instructions 内置采集规则与敏感级指引；月报材料 get_monthly_report
 - **M3 桌面端（管理）**（已落地：档案总览 / 时间线（混合检索 + 文本导入）/ 实体详情（编辑 / 历史版本 / 合并 / 删除）/ 审查中心（待确认 + 月报 + 审计）/ 回收站（恢复 / 彻底清除 / 30 天自动清理）/ 设置（导出 + MCP 接入 + 注入预览）/ ⌘K 全局搜索；打包脚本 `npm run tauri:build`）
-- **M4 内置对话**：桌面端自带会话，档案常驻注入 + AI 写操作确认卡 + 本地模型切换
+- **M4 内置对话**（已落地）：桌面端自带会话（SQLite 持久化）；每轮注入档案+相关历史（secret 级永不注入任何请求）；AI 写操作以 ```memoir-op 代码块输出 → 客户端解析为确认卡，采纳才落库（撤销无痕迹）；云端/本地双后端（OpenAI 兼容协议，GLM/OpenAI/DeepSeek 与 Ollama /v1 通用），配置存 settings 表；流式输出走 Tauri 事件
 - **M5 可选云同步**：端到端加密同步、多端

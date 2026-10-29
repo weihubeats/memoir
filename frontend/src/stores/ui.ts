@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-export type Tab = 'profile' | 'entity' | 'timeline' | 'review' | 'trash' | 'settings'
+export type Tab = 'profile' | 'entity' | 'timeline' | 'chat' | 'review' | 'trash' | 'settings'
 
 export const useUiStore = defineStore('ui', {
   state: () => ({

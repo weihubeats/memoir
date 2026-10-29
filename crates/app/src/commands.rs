@@ -283,3 +283,332 @@ pub async fn get_context_preview(
     .await
     .map_err(err)
 }
+
+// ---------- 内置对话（M4） ----------
+
+use core::chat::ChatOp;
+use tauri::{AppHandle, Emitter};
+
+#[derive(Serialize, Clone)]
+struct ChatStartPayload {
+    conversation_id: i64,
+    user_message_id: i64,
+}
+
+#[derive(Serialize, Clone)]
+struct ChatChunkPayload {
+    conversation_id: i64,
+    delta: String,
+}
+
+#[derive(Serialize, Clone)]
+struct ChatDonePayload {
+    conversation_id: i64,
+    message_id: i64,
+}
+
+#[derive(Serialize, Clone)]
+struct ChatErrorPayload {
+    conversation_id: i64,
+    error: String,
+}
+
+#[derive(Serialize)]
+pub struct ChatMessageDto {
+    pub id: i64,
+    pub conversation_id: i64,
+    pub role: String,
+    pub content: String,
+    pub created_at: String,
+    pub segments: Vec<core::chat::Segment>,
+    pub adopted: Vec<i64>,
+}
+
+async fn get_setting(ctx: &core::Ctx, key: &str) -> Result<String, String> {
+    Ok(core::repo::settings_get(&ctx.pool, key)
+        .await
+        .map_err(err)?
+        .unwrap_or_default())
+}
+
+async fn resolve_llm_config(
+    ctx: &core::Ctx,
+    backend: &str,
+) -> Result<core::chat::LlmConfig, String> {
+    match backend {
+        "local" => Ok(core::chat::LlmConfig {
+            base_url: match get_setting(ctx, "local_base_url").await? {
+                u if u.is_empty() => "http://127.0.0.1:11434/v1".to_owned(),
+                u => u,
+            },
+            api_key: get_setting(ctx, "local_api_key").await?,
+            model: get_setting(ctx, "local_model").await?,
+        }),
+        _ => {
+            let base_url = get_setting(ctx, "cloud_base_url").await?;
+            let model = get_setting(ctx, "cloud_model").await?;
+            if base_url.is_empty() || model.is_empty() {
+                return Err(
+                    "云端模型未配置：请到「设置 → 对话后端」填写 Base URL 与模型名".to_owned(),
+                );
+            }
+            Ok(core::chat::LlmConfig {
+                base_url,
+                api_key: get_setting(ctx, "cloud_api_key").await?,
+                model,
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn chat_new(
+    state: State<'_, AppState>,
+    backend: Option<String>,
+) -> Result<core::repo::Conversation, String> {
+    core::repo::create_conversation(&state.ctx, backend.as_deref().unwrap_or("cloud"))
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn chat_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<core::repo::Conversation>, String> {
+    core::repo::list_conversations(&state.ctx)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn chat_delete(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::delete_conversation(&state.ctx, id)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn chat_messages(
+    state: State<'_, AppState>,
+    conversation_id: i64,
+) -> Result<Vec<ChatMessageDto>, String> {
+    let rows = core::repo::chat_messages(&state.ctx, conversation_id)
+        .await
+        .map_err(err)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for m in rows {
+        let adopted = core::repo::adopted_chat_ops(&state.ctx, m.id)
+            .await
+            .map_err(err)?;
+        let segments = core::chat::parse_segments(&m.content);
+        out.push(ChatMessageDto {
+            id: m.id,
+            conversation_id: m.conversation_id,
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            segments,
+            adopted,
+        });
+    }
+    Ok(out)
+}
+
+#[derive(serde::Deserialize)]
+pub struct ChatSendArgs {
+    pub conversation_id: i64,
+    pub content: String,
+}
+
+/// 发送消息：立即落库用户消息并返回，LLM 流式回复通过事件推送
+/// （memoir://chat-start / chat-chunk / chat-done / chat-error）。
+#[tauri::command]
+pub async fn chat_send(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    args: ChatSendArgs,
+) -> Result<i64, String> {
+    let conversation = core::repo::get_conversation(&state.ctx, args.conversation_id)
+        .await
+        .map_err(err)?;
+    let user_message_id =
+        core::repo::add_chat_message(&state.ctx, args.conversation_id, "user", &args.content)
+            .await
+            .map_err(err)?;
+    let _ = app.emit(
+        "memoir://chat-start",
+        ChatStartPayload {
+            conversation_id: args.conversation_id,
+            user_message_id,
+        },
+    );
+
+    // 上下文注入：档案常驻 + 按话题检索（secret 级永不注入）
+    let context = core::context::get_context(
+        &state.ctx,
+        Some(&args.content),
+        core::context::DEFAULT_BUDGET_CHARS,
+    )
+    .await
+    .map_err(err)?;
+    let history = core::repo::chat_messages(&state.ctx, args.conversation_id)
+        .await
+        .map_err(err)?;
+    let mut llm_messages = vec![core::chat::LlmMessage {
+        role: "system".to_owned(),
+        content: format!(
+            "{}\n\n---\n以下是从用户个人上下文库注入的资料：\n\n{context}",
+            core::chat::SYSTEM_PROMPT
+        ),
+    }];
+    for m in history {
+        if m.role != "system" {
+            llm_messages.push(core::chat::LlmMessage {
+                role: m.role,
+                content: m.content,
+            });
+        }
+    }
+    let cfg = resolve_llm_config(&state.ctx, &conversation.backend).await?;
+
+    let ctx = state.ctx.clone();
+    let emitter = app.clone();
+    let conversation_id = args.conversation_id;
+    tauri::async_runtime::spawn(async move {
+        let result = core::chat::chat_stream(&cfg, &llm_messages, |delta| {
+            let _ = emitter.emit(
+                "memoir://chat-chunk",
+                ChatChunkPayload {
+                    conversation_id,
+                    delta: delta.to_owned(),
+                },
+            );
+        })
+        .await;
+        match result {
+            Ok(text) => {
+                match core::repo::add_chat_message(&ctx, conversation_id, "assistant", &text).await
+                {
+                    Ok(message_id) => {
+                        let _ = emitter.emit(
+                            "memoir://chat-done",
+                            ChatDonePayload {
+                                conversation_id,
+                                message_id,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        let _ = emitter.emit(
+                            "memoir://chat-error",
+                            ChatErrorPayload {
+                                conversation_id,
+                                error: e.to_string(),
+                            },
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = emitter.emit(
+                    "memoir://chat-error",
+                    ChatErrorPayload {
+                        conversation_id,
+                        error: e.to_string(),
+                    },
+                );
+            }
+        }
+    });
+    Ok(user_message_id)
+}
+
+#[derive(serde::Deserialize)]
+pub struct ApplyOpArgs {
+    pub message_id: i64,
+    pub op_index: i64,
+    pub op: ChatOp,
+}
+
+/// 采纳 AI 写操作：真正落库并记录采纳（撤销由前端丢弃即可，不落库）。
+#[tauri::command]
+pub async fn apply_chat_op(
+    state: State<'_, AppState>,
+    args: ApplyOpArgs,
+) -> Result<String, String> {
+    let summary = match &args.op {
+        ChatOp::UpsertFact {
+            entity,
+            key,
+            value,
+            domain,
+            sensitivity,
+        } => {
+            let (fact, _) = core::repo::upsert_fact(
+                &state.ctx,
+                core::model::FactUpsert {
+                    entity_name: entity.clone(),
+                    key: key.clone(),
+                    value: value.clone(),
+                    domain: domain.clone(),
+                    sensitivity: sensitivity.clone().unwrap_or_else(|| "normal".to_owned()),
+                    source_entry_id: None,
+                },
+            )
+            .await
+            .map_err(err)?;
+            format!("事实 #{}：{} = {}", fact.id, fact.key, fact.value)
+        }
+        ChatOp::AddEntry {
+            title,
+            body,
+            kind,
+            tags,
+            entities,
+        } => {
+            let entry = core::repo::add_entry(
+                &state.ctx,
+                core::model::NewEntry {
+                    kind: kind.clone().unwrap_or_else(|| "chat".to_owned()),
+                    title: title.clone(),
+                    body: body.clone(),
+                    tags: tags.clone(),
+                    entity_names: entities.clone(),
+                    occurred_at: None,
+                },
+                "chat",
+            )
+            .await
+            .map_err(err)?;
+            format!("记录 #{}：{}", entry.id, entry.title)
+        }
+    };
+    core::repo::adopt_chat_op(&state.ctx, args.message_id, args.op_index)
+        .await
+        .map_err(err)?;
+    Ok(summary)
+}
+
+// ---------- 应用设置 ----------
+
+#[tauri::command]
+pub async fn settings_all(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    Ok(core::repo::settings_all(&state.ctx.pool)
+        .await
+        .map_err(err)?
+        .into_iter()
+        .collect())
+}
+
+#[tauri::command]
+pub async fn settings_set(
+    state: State<'_, AppState>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    core::repo::settings_set(&state.ctx.pool, &key, &value)
+        .await
+        .map_err(err)
+}

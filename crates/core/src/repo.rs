@@ -658,3 +658,180 @@ pub async fn auto_purge(pool: &SqlitePool) -> anyhow::Result<(u64, u64)> {
         .rows_affected();
     Ok((entries, facts))
 }
+
+// ---------- 内置对话（M4） ----------
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct Conversation {
+    pub id: i64,
+    pub title: String,
+    pub backend: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct ChatMessageRow {
+    pub id: i64,
+    pub conversation_id: i64,
+    pub role: String,
+    pub content: String,
+    pub created_at: String,
+}
+
+pub async fn create_conversation(ctx: &Ctx, backend: &str) -> anyhow::Result<Conversation> {
+    let ts = now();
+    let res = sqlx::query(
+        "INSERT INTO conversations (title, backend, created_at, updated_at) \
+         VALUES ('新对话', ?1, ?2, ?3)",
+    )
+    .bind(backend)
+    .bind(&ts)
+    .bind(&ts)
+    .execute(&ctx.pool)
+    .await?;
+    sqlx::query_as::<_, Conversation>(
+        "SELECT id, title, backend, created_at, updated_at \
+         FROM conversations WHERE id = ?1",
+    )
+    .bind(res.last_insert_rowid())
+    .fetch_one(&ctx.pool)
+    .await
+    .context("会话创建后读取失败")
+}
+
+pub async fn list_conversations(ctx: &Ctx) -> anyhow::Result<Vec<Conversation>> {
+    Ok(sqlx::query_as::<_, Conversation>(
+        "SELECT id, title, backend, created_at, updated_at \
+         FROM conversations ORDER BY updated_at DESC",
+    )
+    .fetch_all(&ctx.pool)
+    .await?)
+}
+
+pub async fn get_conversation(ctx: &Ctx, id: i64) -> anyhow::Result<Conversation> {
+    sqlx::query_as::<_, Conversation>(
+        "SELECT id, title, backend, created_at, updated_at \
+         FROM conversations WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_optional(&ctx.pool)
+    .await?
+    .context("会话不存在")
+}
+
+pub async fn delete_conversation(ctx: &Ctx, id: i64) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM conversations WHERE id = ?1")
+        .bind(id)
+        .execute(&ctx.pool)
+        .await?;
+    audit(
+        &ctx.pool,
+        "delete_conversation",
+        "conversation",
+        Some(id),
+        "app",
+        "",
+    )
+    .await
+}
+
+/// 追加消息；首条用户消息自动作为会话标题（截前 24 字）。
+pub async fn add_chat_message(
+    ctx: &Ctx,
+    conversation_id: i64,
+    role: &str,
+    content: &str,
+) -> anyhow::Result<i64> {
+    let ts = now();
+    let res = sqlx::query(
+        "INSERT INTO messages (conversation_id, role, content, created_at) \
+         VALUES (?1, ?2, ?3, ?4)",
+    )
+    .bind(conversation_id)
+    .bind(role)
+    .bind(content)
+    .bind(&ts)
+    .execute(&ctx.pool)
+    .await?;
+    if role == "user" {
+        sqlx::query(
+            "UPDATE conversations SET updated_at = ?1, \
+             title = CASE WHEN title = '新对话' THEN substr(?2, 1, 24) ELSE title END \
+             WHERE id = ?3",
+        )
+        .bind(&ts)
+        .bind(content)
+        .bind(conversation_id)
+        .execute(&ctx.pool)
+        .await?;
+    } else {
+        sqlx::query("UPDATE conversations SET updated_at = ?1 WHERE id = ?2")
+            .bind(&ts)
+            .bind(conversation_id)
+            .execute(&ctx.pool)
+            .await?;
+    }
+    Ok(res.last_insert_rowid())
+}
+
+pub async fn chat_messages(ctx: &Ctx, conversation_id: i64) -> anyhow::Result<Vec<ChatMessageRow>> {
+    Ok(sqlx::query_as::<_, ChatMessageRow>(
+        "SELECT id, conversation_id, role, content, created_at \
+         FROM messages WHERE conversation_id = ?1 ORDER BY id",
+    )
+    .bind(conversation_id)
+    .fetch_all(&ctx.pool)
+    .await?)
+}
+
+/// 记录「用户已采纳该写操作」。
+pub async fn adopt_chat_op(ctx: &Ctx, message_id: i64, op_index: i64) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT OR IGNORE INTO chat_op_adoptions (message_id, op_index, adopted_at) \
+         VALUES (?1, ?2, ?3)",
+    )
+    .bind(message_id)
+    .bind(op_index)
+    .bind(now())
+    .execute(&ctx.pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn adopted_chat_ops(ctx: &Ctx, message_id: i64) -> anyhow::Result<Vec<i64>> {
+    sqlx::query_scalar::<_, i64>("SELECT op_index FROM chat_op_adoptions WHERE message_id = ?1")
+        .bind(message_id)
+        .fetch_all(&ctx.pool)
+        .await
+        .map_err(Into::into)
+}
+
+// ---------- 应用设置（KV） ----------
+
+pub async fn settings_get(pool: &SqlitePool, key: &str) -> anyhow::Result<Option<String>> {
+    sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn settings_set(pool: &SqlitePool, key: &str, value: &str) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2) \
+         ON CONFLICT(key) DO UPDATE SET value = ?2",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn settings_all(pool: &SqlitePool) -> anyhow::Result<Vec<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>("SELECT key, value FROM settings")
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+}

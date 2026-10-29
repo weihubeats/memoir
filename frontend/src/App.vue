@@ -6,6 +6,7 @@ import { useWorkspaceStore } from './stores/workspace'
 import ProfileView from './views/ProfileView.vue'
 import EntityDetailView from './views/EntityDetailView.vue'
 import TimelineView from './views/TimelineView.vue'
+import ChatView from './views/ChatView.vue'
 import ReviewView from './views/ReviewView.vue'
 import TrashView from './views/TrashView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -24,6 +25,7 @@ const searchInput = ref<HTMLInputElement | null>(null)
 const tabs: { key: Tab; label: string }[] = [
   { key: 'profile', label: t('nav.profile') },
   { key: 'timeline', label: t('nav.timeline') },
+  { key: 'chat', label: t('nav.chat') },
   { key: 'review', label: t('nav.review') },
   { key: 'trash', label: t('nav.trash') },
   { key: 'settings', label: t('nav.settings') },
@@ -33,6 +35,7 @@ const views = {
   profile: ProfileView,
   entity: EntityDetailView,
   timeline: TimelineView,
+  chat: ChatView,
   review: ReviewView,
   trash: TrashView,
   settings: SettingsView,

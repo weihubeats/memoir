@@ -65,3 +65,45 @@ export interface TrashData {
   facts: Fact[]
   entries: Entry[]
 }
+
+// ---------- 内置对话（M4） ----------
+
+export interface Conversation {
+  id: number
+  title: string
+  backend: 'cloud' | 'local'
+  created_at: string
+  updated_at: string
+}
+
+export type ChatOp =
+  | {
+      type: 'upsert_fact'
+      entity: string
+      key: string
+      value: unknown
+      domain: string | null
+      sensitivity: string | null
+    }
+  | {
+      type: 'add_entry'
+      title: string
+      body: string
+      kind: string | null
+      tags: string[]
+      entities: string[]
+    }
+
+export type Segment =
+  | { kind: 'text'; content: string }
+  | { kind: 'op'; index: number; op: ChatOp }
+
+export interface ChatMessage {
+  id: number
+  conversation_id: number
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  created_at: string
+  segments: Segment[]
+  adopted: number[]
+}

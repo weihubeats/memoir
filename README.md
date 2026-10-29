@@ -29,7 +29,7 @@ docs/DESIGN.md        设计文档（数据模型 / 架构 / 注入策略 / 管�
 crates/core           核心库：SQLite 存储 / 事实版本化 / 档案注入 / 混合检索 / 导出
 crates/mcp            MCP server（rmcp，stdio）
 crates/cli            命令行：memoir init / add / list / search / report / export / serve
-crates/app            桌面端（Tauri 2）：档案 / 实体详情 / 时间线 / 审查中心 / 回收站 / 设置
+crates/app            桌面端（Tauri 2）：对话 / 档案 / 实体详情 / 时间线 / 审查中心 / 回收站 / 设置
 frontend              桌面端前端（Vue 3 + Vite + Tailwind v4 + Pinia，zh/en i18n）
 ```
 
@@ -67,6 +67,8 @@ cargo run -p memoir-app       # 开发热更新：npm --prefix frontend run dev 
 ```bash
 npm --prefix frontend run tauri:build
 ```
+
+内置对话：在桌面端「设置 → 对话后端」填写 OpenAI 兼容端点（云端如 GLM/OpenAI，或本地 Ollama `http://127.0.0.1:11434/v1`），然后到「对话」页开聊。AI 提出的写操作（更新事实/新增记录）以确认卡呈现，采纳才入库。
 
 可选——向量语义检索（本机 Ollama，未配置则只用关键词检索）：
 
