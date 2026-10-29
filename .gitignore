@@ -23,3 +23,7 @@ __pycache__/
 
 # Tauri generated
 crates/app/gen/
+
+# tauri icon 生成的移动端图标（本项目仅桌面端）
+crates/app/icons/android/
+crates/app/icons/ios/

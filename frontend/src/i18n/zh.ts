@@ -1,9 +1,11 @@
 export const zh = {
   'app.name': 'my-context 个人上下文',
+  'app.searchPlaceholder': '全局搜索（⌘K，回车跳转时间线）',
 
   'nav.profile': '档案',
   'nav.timeline': '时间线',
   'nav.review': '审查中心',
+  'nav.trash': '回收站',
   'nav.settings': '设置',
 
   'common.loading': '加载中…',
@@ -20,6 +22,9 @@ export const zh = {
   'common.kind': '类型',
   'common.none': '无',
   'common.close': '收起',
+  'common.restore': '恢复',
+  'common.purge': '彻底清除',
+  'common.delete': '删除',
 
   'sens.normal': '普通',
   'sens.sensitive': '敏感',
@@ -32,6 +37,30 @@ export const zh = {
   'profile.value': '值',
   'profile.factOf': '{entity} · {key}',
   'profile.entityCount': '{count} 个实体',
+
+  'entity.title': '实体详情',
+  'entity.back': '返回档案',
+  'entity.activeFacts': '当前事实',
+  'entity.history': '历史版本（封口保留）',
+  'entity.relatedEntries': '关联记录',
+  'entity.edit': '编辑',
+  'entity.merge': '合并到…',
+  'entity.mergeTarget': '目标实体',
+  'entity.mergeConfirm': '确认合并（本实体删除，事实与关联移过去）',
+  'entity.delete': '删除实体（进回收站）',
+  'entity.noHistory': '无历史版本',
+  'entity.validRange': '{from} 至 {to}',
+
+  'trash.title': '回收站',
+  'trash.entries': '回收记录',
+  'trash.facts': '回收事实',
+  'trash.entities': '回收实体',
+  'trash.empty': '回收站为空',
+  'trash.autoPurgeHint': '软删项保留 30 天后自动物理清除',
+
+  'timeline.import': '导入文本',
+  'timeline.importTitle': '导入标题',
+  'timeline.importBody': '粘贴文本（Markdown，作为一条 import 记录）',
 
   'timeline.title': '时间线',
   'timeline.newEntry': '新增记录',

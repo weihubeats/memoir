@@ -35,6 +35,17 @@ pub fn run() {
             commands::monthly_report,
             commands::export_data,
             commands::get_context_preview,
+            commands::list_trash,
+            commands::delete_entry,
+            commands::restore_entry,
+            commands::purge_entry,
+            commands::delete_fact,
+            commands::restore_fact,
+            commands::purge_fact,
+            commands::delete_entity,
+            commands::restore_entity,
+            commands::purge_entity,
+            commands::merge_entities,
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-context desktop app");

@@ -27,7 +27,8 @@ pub async fn list_stale_facts(pool: &SqlitePool, months: i64) -> anyhow::Result<
     let rows = sqlx::query_as::<_, StaleFact>(
         "SELECT e.name AS entity, f.key, f.value, f.updated_at \
          FROM facts f JOIN entities e ON e.id = f.entity_id \
-         WHERE f.valid_to IS NULL AND f.updated_at < ?1 ORDER BY f.updated_at",
+         WHERE f.valid_to IS NULL AND f.deleted_at IS NULL AND f.updated_at < ?1 \
+         ORDER BY f.updated_at",
     )
     .bind(cutoff)
     .fetch_all(pool)
@@ -48,7 +49,8 @@ pub async fn monthly_report(ctx: &Ctx, year: i32, month: u32) -> anyhow::Result<
 
     let entries: Vec<(i64, String, String, String)> = sqlx::query_as(
         "SELECT id, occurred_at, kind, title FROM entries \
-         WHERE occurred_at >= ?1 AND occurred_at < ?2 ORDER BY occurred_at",
+         WHERE occurred_at >= ?1 AND occurred_at < ?2 AND deleted_at IS NULL \
+         ORDER BY occurred_at",
     )
     .bind(&start)
     .bind(&end)

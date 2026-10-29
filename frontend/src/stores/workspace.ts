@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { AuditRow, DbInfo, Entity, Entry, Fact, StaleFact } from '../types'
+import type { AuditRow, DbInfo, Entity, Entry, Fact, StaleFact, TrashData } from '../types'
 
 export interface UpsertFactPayload {
   entity: string
@@ -35,6 +35,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     entries: [] as Entry[],
     audit: [] as AuditRow[],
     stale: [] as StaleFact[],
+    trash: null as TrashData | null,
+    entityFacts: [] as Fact[],
     loading: false,
     error: '',
   }),
@@ -113,6 +115,55 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
     async contextPreview(query?: string): Promise<string> {
       return invoke<string>('get_context_preview', { query })
+    },
+    async loadTrash() {
+      this.trash = await invoke<TrashData>('list_trash')
+    },
+    async loadEntityFacts(id: number) {
+      this.entityFacts = await invoke<Fact[]>('list_facts', { entityId: id, activeOnly: false })
+    },
+    async loadInfo() {
+      this.info = await invoke<DbInfo>('db_info')
+    },
+    async deleteEntry(id: number) {
+      await invoke('delete_entry', { id })
+      await Promise.all([this.reloadEntries(), this.loadTrash(), this.loadInfo()])
+    },
+    async restoreEntry(id: number) {
+      await invoke('restore_entry', { id })
+      await Promise.all([this.reloadEntries(), this.loadTrash()])
+    },
+    async purgeEntry(id: number) {
+      await invoke('purge_entry', { id })
+      await Promise.all([this.reloadEntries(), this.loadTrash()])
+    },
+    async deleteFact(id: number) {
+      await invoke('delete_fact', { id })
+      await Promise.all([this.reloadFacts(), this.loadTrash(), this.reloadStale()])
+    },
+    async restoreFact(id: number) {
+      await invoke('restore_fact', { id })
+      await Promise.all([this.reloadFacts(), this.loadTrash(), this.reloadStale()])
+    },
+    async purgeFact(id: number) {
+      await invoke('purge_fact', { id })
+      await Promise.all([this.reloadFacts(), this.loadTrash()])
+    },
+    async deleteEntity(id: number) {
+      await invoke('delete_entity', { id })
+      await Promise.all([this.reloadEntities(), this.reloadFacts(), this.loadTrash()])
+    },
+    async restoreEntity(id: number) {
+      await invoke('restore_entity', { id })
+      await Promise.all([this.reloadEntities(), this.loadTrash()])
+    },
+    async purgeEntity(id: number) {
+      await invoke('purge_entity', { id })
+      await this.loadTrash()
+    },
+    async mergeEntities(sourceId: number, targetId: number) {
+      await invoke('merge_entities', { sourceId, targetId })
+      await Promise.all([this.reloadEntities(), this.reloadFacts(), this.reloadEntries()])
     },
   },
 })

@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tauri": "tauri",
+    "tauri:dev": "cd .. && frontend/node_modules/.bin/tauri dev --config crates/app/tauri.conf.json",
+    "tauri:build": "npm run build && cd .. && frontend/node_modules/.bin/tauri build --config crates/app/tauri.conf.json --bundles app"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -16,6 +19,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2.12.4",
     "@vitejs/plugin-vue": "^6",
     "@vue/test-utils": "^2",
     "jsdom": "^27",

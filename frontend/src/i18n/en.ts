@@ -2,10 +2,12 @@ import type { I18nKey } from './zh'
 
 export const en: Record<I18nKey, string> = {
   'app.name': 'my-context · Personal Context',
+  'app.searchPlaceholder': 'Global search (⌘K, Enter opens timeline)',
 
   'nav.profile': 'Profile',
   'nav.timeline': 'Timeline',
   'nav.review': 'Review',
+  'nav.trash': 'Trash',
   'nav.settings': 'Settings',
 
   'common.loading': 'Loading…',
@@ -22,6 +24,9 @@ export const en: Record<I18nKey, string> = {
   'common.kind': 'Kind',
   'common.none': 'None',
   'common.close': 'Close',
+  'common.restore': 'Restore',
+  'common.purge': 'Purge',
+  'common.delete': 'Delete',
 
   'sens.normal': 'normal',
   'sens.sensitive': 'sensitive',
@@ -34,6 +39,30 @@ export const en: Record<I18nKey, string> = {
   'profile.value': 'Value',
   'profile.factOf': '{entity} · {key}',
   'profile.entityCount': '{count} entities',
+
+  'entity.title': 'Entity Detail',
+  'entity.back': 'Back to profile',
+  'entity.activeFacts': 'Active facts',
+  'entity.history': 'History (sealed, kept)',
+  'entity.relatedEntries': 'Related entries',
+  'entity.edit': 'Edit',
+  'entity.merge': 'Merge into…',
+  'entity.mergeTarget': 'Target entity',
+  'entity.mergeConfirm': 'Confirm merge (this entity is removed; facts & links move over)',
+  'entity.delete': 'Delete entity (to trash)',
+  'entity.noHistory': 'No history',
+  'entity.validRange': '{from} to {to}',
+
+  'trash.title': 'Trash',
+  'trash.entries': 'Trashed entries',
+  'trash.facts': 'Trashed facts',
+  'trash.entities': 'Trashed entities',
+  'trash.empty': 'Trash is empty',
+  'trash.autoPurgeHint': 'Soft-deleted items are purged physically after 30 days',
+
+  'timeline.import': 'Import text',
+  'timeline.importTitle': 'Import title',
+  'timeline.importBody': 'Paste text (Markdown, stored as one import entry)',
 
   'timeline.title': 'Timeline',
   'timeline.newEntry': 'New Entry',

@@ -26,7 +26,8 @@ pub async fn search_entries(
     let kw: Vec<i64> = if query.chars().count() >= 3 {
         sqlx::query_scalar(
             "SELECT e.id FROM entries_fts f JOIN entries e ON e.id = f.rowid \
-             WHERE entries_fts MATCH ?1 ORDER BY bm25(entries_fts), e.id LIMIT ?2",
+             WHERE entries_fts MATCH ?1 AND e.deleted_at IS NULL \
+             ORDER BY bm25(entries_fts), e.id LIMIT ?2",
         )
         .bind(fts_phrase(query))
         .bind(candidate as i64)
@@ -35,7 +36,7 @@ pub async fn search_entries(
     } else {
         let pattern = format!("%{}%", query.replace(['%', '_'], ""));
         sqlx::query_scalar(
-            "SELECT id FROM entries WHERE title LIKE ?1 OR body LIKE ?1 \
+            "SELECT id FROM entries WHERE (title LIKE ?1 OR body LIKE ?1) AND deleted_at IS NULL \
              ORDER BY occurred_at DESC, id DESC LIMIT ?2",
         )
         .bind(pattern)

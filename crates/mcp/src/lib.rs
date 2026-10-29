@@ -256,6 +256,7 @@ impl MyContextServer {
             &p.name,
             p.kind.as_deref().unwrap_or("topic"),
             p.domain.as_deref(),
+            "ai",
         )
         .await
         .map_err(mcp_err)?;

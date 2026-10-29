@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useLocaleStore } from '../stores/locale'
+import { useUiStore } from '../stores/ui'
 import { useWorkspaceStore, type AddEntryPayload } from '../stores/workspace'
 import type { Entry } from '../types'
 
 const t = useLocaleStore().t
 const ws = useWorkspaceStore()
+const ui = useUiStore()
 
 const query = ref('')
 const results = ref<Entry[] | null>(null)
@@ -14,6 +16,43 @@ const searching = ref(false)
 const showForm = ref(false)
 const submitting = ref(false)
 const form = ref<AddEntryPayload>({ title: '', body: '', kind: 'note', tags: [], entities: [] })
+
+const showImport = ref(false)
+const importing = ref(false)
+const importForm = ref({ title: '', body: '', entities: '' })
+
+async function runImport() {
+  if (!importForm.value.title || !importForm.value.body) return
+  importing.value = true
+  try {
+    await ws.addEntry({
+      title: importForm.value.title,
+      body: importForm.value.body,
+      kind: 'import',
+      tags: [],
+      entities: importForm.value.entities
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    })
+    importForm.value = { title: '', body: '', entities: '' }
+    showImport.value = false
+  } finally {
+    importing.value = false
+  }
+}
+
+watch(
+  () => ui.pendingSearch,
+  (q) => {
+    if (q) {
+      query.value = q
+      results.value = null
+      runSearch()
+      ui.pendingSearch = ''
+    }
+  },
+)
 
 async function runSearch() {
   const q = query.value.trim()
@@ -56,9 +95,14 @@ onMounted(() => {
   <section class="mx-auto max-w-3xl">
     <div class="mb-4 flex items-center justify-between">
       <h1 class="text-base font-semibold">{{ t('timeline.title') }}</h1>
-      <button class="mc-btn mc-btn-primary text-xs" @click="showForm = !showForm">
-        {{ t('timeline.newEntry') }}
-      </button>
+      <div class="flex gap-2">
+        <button class="mc-btn text-xs" @click="showImport = !showImport">
+          {{ t('timeline.import') }}
+        </button>
+        <button class="mc-btn mc-btn-primary text-xs" @click="showForm = !showForm">
+          {{ t('timeline.newEntry') }}
+        </button>
+      </div>
     </div>
 
     <div class="mb-4 flex gap-2">
@@ -103,6 +147,26 @@ onMounted(() => {
       </div>
       <div class="text-right">
         <button class="mc-btn mc-btn-primary text-xs" type="submit" :disabled="submitting">
+          {{ t('common.submit') }}
+        </button>
+      </div>
+    </form>
+
+    <form v-if="showImport" class="mc-panel mb-4 flex flex-col gap-3 p-4" @submit.prevent="runImport">
+      <label class="flex flex-col gap-1 text-xs">
+        {{ t('timeline.importTitle') }}
+        <input v-model="importForm.title" class="mc-input" required />
+      </label>
+      <label class="flex flex-col gap-1 text-xs">
+        {{ t('timeline.importBody') }}
+        <textarea v-model="importForm.body" class="mc-textarea h-40" required></textarea>
+      </label>
+      <label class="flex flex-col gap-1 text-xs">
+        {{ t('timeline.entities') }}
+        <input v-model="importForm.entities" class="mc-input" placeholder="我" />
+      </label>
+      <div class="text-right">
+        <button class="mc-btn mc-btn-primary text-xs" type="submit" :disabled="importing">
           {{ t('common.submit') }}
         </button>
       </div>

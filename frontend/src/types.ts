@@ -8,6 +8,7 @@ export interface Entity {
   status: string
   created_at: string
   updated_at: string
+  deleted_at: string | null
 }
 
 export interface Fact {
@@ -20,6 +21,7 @@ export interface Fact {
   valid_from: string
   valid_to: string | null
   source_entry_id: number | null
+  deleted_at: string | null
 }
 
 export interface Entry {
@@ -31,6 +33,7 @@ export interface Entry {
   tags: string[]
   entity_ids: number[]
   created_at: string
+  deleted_at: string | null
 }
 
 export interface AuditRow {
@@ -55,4 +58,10 @@ export interface DbInfo {
   entities: number
   facts: number
   entries: number
+}
+
+export interface TrashData {
+  entities: Entity[]
+  facts: Fact[]
+  entries: Entry[]
 }

@@ -26,7 +26,9 @@ pub async fn get_profile(ctx: &Ctx, opts: ProfileOptions) -> anyhow::Result<Stri
     let rows = sqlx::query_as::<_, ProfileRow>(
         "SELECT e.name AS entity_name, f.key, f.value, f.domain, f.sensitivity, f.valid_from \
          FROM facts f JOIN entities e ON e.id = f.entity_id \
-         WHERE f.valid_to IS NULL ORDER BY f.domain, e.name, f.key",
+         WHERE f.valid_to IS NULL AND f.deleted_at IS NULL \
+           AND e.status = 'active' AND e.deleted_at IS NULL \
+         ORDER BY f.domain, e.name, f.key",
     )
     .fetch_all(&ctx.pool)
     .await?;

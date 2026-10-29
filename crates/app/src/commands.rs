@@ -159,9 +159,91 @@ pub async fn add_entity(
         &name,
         kind.as_deref().unwrap_or("topic"),
         domain.as_deref(),
+        "app",
     )
     .await
     .map_err(err)
+}
+
+// ---------- 回收站（软删 / 恢复 / 彻底清除）----------
+
+#[tauri::command]
+pub async fn list_trash(state: State<'_, AppState>) -> Result<core::repo::TrashData, String> {
+    core::repo::list_trash(&state.ctx).await.map_err(err)
+}
+
+#[tauri::command]
+pub async fn delete_entry(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::delete_entry(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn restore_entry(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::restore_entry(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn purge_entry(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::purge_entry(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn delete_fact(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::delete_fact(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn restore_fact(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::restore_fact(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn purge_fact(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::purge_fact(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn delete_entity(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::delete_entity(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn restore_entity(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::restore_entity(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn purge_entity(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    core::repo::purge_entity(&state.ctx, id, "app")
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn merge_entities(
+    state: State<'_, AppState>,
+    source_id: i64,
+    target_id: i64,
+) -> Result<core::model::Entity, String> {
+    core::repo::merge_entities(&state.ctx, source_id, target_id, "app")
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]

@@ -41,9 +41,10 @@ pub async fn migrate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 打开库并确保迁移与种子数据就绪（幂等），CLI 与 MCP server 的统一入口。
+/// 打开库并确保迁移、种子与回收站清理就绪（幂等），CLI 与 MCP server 的统一入口。
 pub async fn ensure_pool(path: &Path) -> anyhow::Result<SqlitePool> {
     let pool = open_pool(path).await?;
     repo::seed_self_entity(&pool).await?;
+    repo::auto_purge(&pool).await?;
     Ok(pool)
 }

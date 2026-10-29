@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useLocaleStore } from '../stores/locale'
+import { useUiStore } from '../stores/ui'
 import { useWorkspaceStore } from '../stores/workspace'
 
 const t = useLocaleStore().t
 const ws = useWorkspaceStore()
+const ui = useUiStore()
 
 const DOMAINS = ['health', 'wealth', 'career', 'family', 'relationship', 'preference', 'goal']
 
@@ -109,7 +111,13 @@ onMounted(() => {
           :style="{ borderColor: 'var(--border)' }"
           data-test="fact-row"
         >
-          <span class="font-medium">{{ ws.entityName(f.entity_id) }}</span>
+          <button
+            class="font-medium underline decoration-dotted underline-offset-4"
+            data-test="entity-link"
+            @click="ui.openEntity(f.entity_id)"
+          >
+            {{ ws.entityName(f.entity_id) }}
+          </button>
           <span class="mc-dim">·</span>
           <span>{{ f.key }}</span>
           <span class="mc-dim">=</span>

@@ -19,6 +19,7 @@ pub struct Entity {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -33,6 +34,7 @@ pub struct FactRow {
     pub valid_from: String,
     pub valid_to: Option<String>,
     pub source_entry_id: Option<i64>,
+    pub deleted_at: Option<String>,
 }
 
 impl FactRow {
@@ -51,6 +53,7 @@ pub struct Entry {
     pub tags: Vec<String>,
     pub entity_ids: Vec<i64>,
     pub created_at: String,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]

@@ -149,8 +149,14 @@ async fn main() -> anyhow::Result<()> {
             with_ctx!(ctx => async {
                 match kind {
                     AddKind::Entity { name, kind, domain } => {
-                        let e =
-                            core::repo::add_entity(&ctx, &name, &kind, domain.as_deref()).await?;
+                        let e = core::repo::add_entity(
+                            &ctx,
+                            &name,
+                            &kind,
+                            domain.as_deref(),
+                            "cli",
+                        )
+                        .await?;
                         println!("实体已创建：{}（#{}, {}）", e.name, e.id, e.kind);
                     }
                     AddKind::Fact { entity, key, value, domain, sensitivity } => {
